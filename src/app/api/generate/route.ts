@@ -29,9 +29,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       turns: scriptResult.turns.length 
     });
 
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
-      ...currentStatus!,
       stage: ProcessingStage.AUDIO,
       progress: 20,
       message: 'Generating audio...',
@@ -49,9 +47,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       audioUrl 
     });
 
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
-      ...currentStatus!,
       stage: ProcessingStage.SPLIT,
       progress: 30,
       message: 'Splitting audio into segments...',
@@ -80,9 +76,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       audioParts 
     });
 
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
-      ...currentStatus!,
       stage: ProcessingStage.VIDEO_GENERATION,
       progress: 40,
       message: 'Generating video segments...',
@@ -110,9 +104,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       videoUrls 
     });
 
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
-      ...currentStatus!,
       stage: ProcessingStage.VIDEO_MERGE,
       progress: 60,
       message: 'Merging video segments...',
@@ -130,9 +122,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       mergeJobId: mergeResult.job_id 
     });
 
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
-      ...currentStatus!,
       stage: ProcessingStage.VIDEO_MERGE,
       progress: 70,
       message: 'Waiting for video merge to complete...',
@@ -149,7 +139,6 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     });
 
     // Stage 6: Complete
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
       stage: ProcessingStage.COMPLETE,
       progress: 100,
@@ -168,7 +157,6 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     
     logWithTimestamp('Background job failed', { jobId, error: errorMessage, stack: errorStack });
     
-    const currentStatus = await jobs.get(jobId);
     await jobs.set(jobId, {
       stage: ProcessingStage.ERROR,
       progress: 0,
