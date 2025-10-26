@@ -173,11 +173,13 @@ export async function POST(request: NextRequest) {
     logWithTimestamp('Starting podcast generation job', { jobId });
     
     // Initialize job status
+    logWithTimestamp('Setting initial job status', { jobId });
     await jobs.set(jobId, {
       stage: ProcessingStage.SCRIPT,
       progress: 0,
       message: 'Starting script generation...'
     });
+    logWithTimestamp('Initial job status set', { jobId });
 
     const formData = await request.formData();
     const prompt = formData.get('prompt') as string;
@@ -199,9 +201,14 @@ export async function POST(request: NextRequest) {
 
     // For Vercel, we need to run the job synchronously but with progress updates
     // Start the job in the background but don't await it
-    setImmediate(async () => {
+    logWithTimestamp('Starting background processing', { jobId });
+    
+    // Use Promise.resolve().then() to run in the background
+    Promise.resolve().then(async () => {
       try {
+        logWithTimestamp('Background processing started', { jobId });
         await processPodcastGeneration(jobId, prompt, imageFile, options);
+        logWithTimestamp('Background processing completed', { jobId });
       } catch (error) {
         logWithTimestamp('Unhandled error in background processing', { jobId, error });
       }

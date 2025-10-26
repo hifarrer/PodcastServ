@@ -5,6 +5,9 @@ import { logWithTimestamp } from './utils';
 
 const JOBS_FILE = path.join(process.cwd(), 'public', 'jobs.json');
 
+// Log the file path for debugging
+console.log('Jobs file path:', JOBS_FILE);
+
 // Ensure jobs file exists
 async function ensureJobsFile() {
   try {
