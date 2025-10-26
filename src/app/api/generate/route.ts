@@ -197,9 +197,14 @@ export async function POST(request: NextRequest) {
       options 
     });
 
-    // Start background processing (don't await)
-    processPodcastGeneration(jobId, prompt, imageFile, options).catch(error => {
-      logWithTimestamp('Unhandled error in background processing', { jobId, error });
+    // For Vercel, we need to run the job synchronously but with progress updates
+    // Start the job in the background but don't await it
+    setImmediate(async () => {
+      try {
+        await processPodcastGeneration(jobId, prompt, imageFile, options);
+      } catch (error) {
+        logWithTimestamp('Unhandled error in background processing', { jobId, error });
+      }
     });
 
     // Return immediately with jobId
