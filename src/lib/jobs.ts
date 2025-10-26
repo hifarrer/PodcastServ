@@ -34,9 +34,21 @@ async function loadJobs(): Promise<Record<string, JobStatus>> {
 async function saveJobs(jobs: Record<string, JobStatus>): Promise<void> {
   try {
     await ensureJobsFile();
-    await fs.writeFile(JOBS_FILE, JSON.stringify(jobs, null, 2), 'utf-8');
+    const jsonData = JSON.stringify(jobs, null, 2);
+    await fs.writeFile(JOBS_FILE, jsonData, 'utf-8');
+    logWithTimestamp('Jobs saved successfully', { 
+      filePath: JOBS_FILE,
+      jobCount: Object.keys(jobs).length,
+      jobs: Object.keys(jobs)
+    });
   } catch (error) {
-    logWithTimestamp('Failed to save jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logWithTimestamp('Failed to save jobs', { 
+      error: errorMessage,
+      filePath: JOBS_FILE,
+      jobCount: Object.keys(jobs).length
+    });
+    throw error; // Re-throw to ensure errors are not silently ignored
   }
 }
 
@@ -92,6 +104,7 @@ class JobStorage {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Job set failed', { jobId, error: errorMessage });
+      throw error; // Re-throw to ensure errors are not silently ignored
     }
   }
 

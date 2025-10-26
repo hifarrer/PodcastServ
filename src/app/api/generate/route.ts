@@ -174,12 +174,18 @@ export async function POST(request: NextRequest) {
     
     // Initialize job status
     logWithTimestamp('Setting initial job status', { jobId });
-    await jobs.set(jobId, {
-      stage: ProcessingStage.SCRIPT,
-      progress: 0,
-      message: 'Starting script generation...'
-    });
-    logWithTimestamp('Initial job status set', { jobId });
+    try {
+      await jobs.set(jobId, {
+        stage: ProcessingStage.SCRIPT,
+        progress: 0,
+        message: 'Starting script generation...'
+      });
+      logWithTimestamp('Initial job status set successfully', { jobId });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Failed to set initial job status', { jobId, error: errorMessage });
+      throw new Error(`Failed to initialize job: ${errorMessage}`);
+    }
 
     const formData = await request.formData();
     const prompt = formData.get('prompt') as string;
