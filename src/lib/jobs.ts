@@ -1,75 +1,40 @@
 import { JobStatus, ProcessingStage } from './types';
-import { promises as fs } from 'fs';
-import path from 'path';
 import { logWithTimestamp } from './utils';
 
-const JOBS_FILE = path.join(process.cwd(), 'public', 'jobs.json');
+// In-memory job storage that persists within the same function instance
+// This is a workaround for Vercel's read-only file system
+const jobStorage = new Map<string, JobStatus>();
 
-// Log the file path for debugging
-console.log('Jobs file path:', JOBS_FILE);
+// Track if we're in a serverless environment
+const isServerless = process.env.VERCEL || process.env.NODE_ENV === 'production';
 
-// Ensure jobs file exists
-async function ensureJobsFile() {
-  try {
-    await fs.access(JOBS_FILE);
-  } catch {
-    // File doesn't exist, create it
-    await fs.writeFile(JOBS_FILE, '{}', 'utf-8');
-  }
-}
+logWithTimestamp('Job storage initialized', { 
+  isServerless,
+  storageType: 'in-memory'
+});
 
-// Load jobs from file
-async function loadJobs(): Promise<Record<string, JobStatus>> {
-  try {
-    await ensureJobsFile();
-    const data = await fs.readFile(JOBS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    logWithTimestamp('Failed to load jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
-    return {};
-  }
-}
-
-// Save jobs to file
-async function saveJobs(jobs: Record<string, JobStatus>): Promise<void> {
-  try {
-    await ensureJobsFile();
-    const jsonData = JSON.stringify(jobs, null, 2);
-    await fs.writeFile(JOBS_FILE, jsonData, 'utf-8');
-    logWithTimestamp('Jobs saved successfully', { 
-      filePath: JOBS_FILE,
-      jobCount: Object.keys(jobs).length,
-      jobs: Object.keys(jobs)
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logWithTimestamp('Failed to save jobs', { 
-      error: errorMessage,
-      filePath: JOBS_FILE,
-      jobCount: Object.keys(jobs).length
-    });
-    throw error; // Re-throw to ensure errors are not silently ignored
-  }
-}
-
-// Job storage class with direct file operations
+// Job storage class with in-memory operations
 class JobStorage {
   async get(jobId: string): Promise<JobStatus | undefined> {
     try {
       logWithTimestamp('Job get requested', { jobId });
       
-      const jobs = await loadJobs();
-      const job = jobs[jobId];
+      const job = jobStorage.get(jobId);
       
       if (job) {
         logWithTimestamp('Job retrieved successfully', { 
           jobId, 
           stage: job.stage,
-          progress: job.progress 
+          progress: job.progress,
+          totalJobs: jobStorage.size
         });
         return job;
       } else {
-        logWithTimestamp('Job not found', { jobId, availableJobs: Object.keys(jobs) });
+        logWithTimestamp('Job not found', { 
+          jobId, 
+          availableJobs: Array.from(jobStorage.keys()),
+          totalJobs: jobStorage.size
+        });
         return undefined;
       }
     } catch (error) {
@@ -92,14 +57,12 @@ class JobStorage {
         progress: statusWithTimestamp.progress 
       });
 
-      const jobs = await loadJobs();
-      jobs[jobId] = statusWithTimestamp;
-      await saveJobs(jobs);
+      jobStorage.set(jobId, statusWithTimestamp);
 
       logWithTimestamp('Job updated successfully', { 
         jobId, 
         stage: statusWithTimestamp.stage,
-        totalJobs: Object.keys(jobs).length 
+        totalJobs: jobStorage.size 
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -112,12 +75,10 @@ class JobStorage {
     try {
       logWithTimestamp('Job deletion requested', { jobId });
       
-      const jobs = await loadJobs();
-      delete jobs[jobId];
-      await saveJobs(jobs);
+      const deleted = jobStorage.delete(jobId);
 
-      logWithTimestamp('Job deleted successfully', { jobId });
-      return true;
+      logWithTimestamp('Job deleted successfully', { jobId, deleted, totalJobs: jobStorage.size });
+      return deleted;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Job delete failed', { jobId, error: errorMessage });
@@ -126,14 +87,13 @@ class JobStorage {
   }
 
   async has(jobId: string): Promise<boolean> {
-    const status = await this.get(jobId);
-    return !!status;
+    return jobStorage.has(jobId);
   }
 
   async clear(): Promise<void> {
     try {
-      await saveJobs({});
-      logWithTimestamp('All jobs cleared');
+      jobStorage.clear();
+      logWithTimestamp('All jobs cleared', { totalJobs: jobStorage.size });
     } catch (error) {
       logWithTimestamp('Failed to clear jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
     }

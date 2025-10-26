@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
+import { jobs } from '@/lib/jobs';
 import { logWithTimestamp } from '@/lib/utils';
-
-const JOBS_FILE = path.join(process.cwd(), 'public', 'jobs.json');
-
-// Load jobs from file
-async function loadJobs(): Promise<Record<string, any>> {
-  try {
-    const data = await fs.readFile(JOBS_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    logWithTimestamp('Failed to load jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
-    return {};
-  }
-}
 
 export async function GET(
   request: NextRequest,
@@ -25,11 +11,10 @@ export async function GET(
   logWithTimestamp('Status check requested', { jobId });
   
   try {
-    const jobs = await loadJobs();
-    const job = jobs[jobId];
+    const job = await jobs.get(jobId);
     
     if (!job) {
-      logWithTimestamp('Job not found', { jobId, availableJobs: Object.keys(jobs) });
+      logWithTimestamp('Job not found', { jobId });
       return NextResponse.json({
         success: false,
         error: 'Job not found',
