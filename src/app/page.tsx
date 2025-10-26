@@ -49,7 +49,15 @@ export default function Home() {
 
       if (result.success) {
         setJobId(result.jobId);
-        logWithTimestamp('Generation started successfully', { jobId: result.jobId });
+        logWithTimestamp('Script generation completed', { jobId: result.jobId });
+        
+        // If we have a script result, continue with the rest of the processing
+        if (result.scriptResult) {
+          logWithTimestamp('Continuing with audio generation', { jobId: result.jobId });
+          
+          // Continue processing in the background
+          continueProcessing(result.jobId, result.scriptResult, data.image, data.options);
+        }
       } else {
         throw new Error(result.error || 'Generation failed');
       }
@@ -60,6 +68,44 @@ export default function Home() {
       alert(`Generation failed: ${errorMessage}`);
       setIsGenerating(false);
       setShowProgress(false);
+    }
+  };
+
+  const continueProcessing = async (jobId: string, scriptResult: any, imageFile: File, options: any) => {
+    try {
+      // Convert image file to base64 for API
+      const imageBuffer = await imageFile.arrayBuffer();
+      const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+      
+      const response = await fetch('/api/continue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId,
+          scriptResult,
+          imageFile: {
+            name: imageFile.name,
+            data: imageBase64
+          },
+          options
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        logWithTimestamp('Continue processing completed', { jobId });
+        setIsGenerating(false);
+      } else {
+        throw new Error(result.error || 'Continue processing failed');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Continue processing failed', { error: errorMessage });
+      alert(`Continue processing failed: ${errorMessage}`);
+      setIsGenerating(false);
     }
   };
 

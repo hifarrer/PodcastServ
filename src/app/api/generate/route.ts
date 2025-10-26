@@ -207,35 +207,59 @@ export async function POST(request: NextRequest) {
       options 
     });
 
-    // For Vercel, run the job synchronously with progress updates
-    // This ensures the job actually runs instead of getting stuck
-    logWithTimestamp('Starting synchronous processing', { jobId });
+    // For Vercel, we need to run the job synchronously but with timeout handling
+    // Process in chunks to avoid Vercel's timeout limits
+    logWithTimestamp('Starting chunked processing', { jobId });
     
-    // Start the processing in the background but don't await it
-    // This allows the response to be sent immediately while processing continues
-    processPodcastGeneration(jobId, prompt, imageFile, options).catch(async (error) => {
+    try {
+      // Stage 1: Script Generation (this should complete quickly)
+      logWithTimestamp('Stage 1: Script Generation - Starting', { jobId });
+      await jobs.set(jobId, {
+        stage: ProcessingStage.SCRIPT,
+        progress: 10,
+        message: 'Generating podcast script...'
+      });
+
+      logWithTimestamp('Stage 1: Script Generation - Calling OpenAI', { jobId });
+      const scriptResult = await generateScript(prompt, options);
+      logWithTimestamp('Stage 1: Script Generation - OpenAI completed', { jobId });
+      
+      await jobs.set(jobId, {
+        stage: ProcessingStage.AUDIO,
+        progress: 20,
+        message: 'Generating audio...',
+        scriptResult
+      });
+
+      // Return the script result and let the frontend handle the rest
+      return NextResponse.json({
+        success: true,
+        jobId,
+        message: 'Script generation completed! Audio generation will continue in the background.',
+        stage: 'AUDIO',
+        progress: 20,
+        scriptResult
+      });
+      
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logWithTimestamp('Background processing failed', { jobId, error: errorMessage });
+      logWithTimestamp('Chunked processing failed', { jobId, error: errorMessage });
       
       // Update job status to error
-      try {
-        await jobs.set(jobId, {
-          stage: ProcessingStage.ERROR,
-          progress: 0,
-          message: `Processing failed: ${errorMessage}`,
-          error: errorMessage
-        });
-      } catch (setError) {
-        logWithTimestamp('Failed to set error status', { jobId, error: setError });
-      }
-    });
-
-    // Return immediately with jobId
-    return NextResponse.json({
-      success: true,
-      jobId,
-      message: 'Podcast generation started successfully!'
-    });
+      await jobs.set(jobId, {
+        stage: ProcessingStage.ERROR,
+        progress: 0,
+        message: `Processing failed: ${errorMessage}`,
+        error: errorMessage
+      });
+      
+      return NextResponse.json({
+        success: false,
+        jobId,
+        error: errorMessage,
+        message: 'Podcast generation failed'
+      }, { status: 500 });
+    }
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
