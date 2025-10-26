@@ -1,4 +1,4 @@
-import { JobStatus } from './types';
+import { JobStatus, ProcessingStage } from './types';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { logWithTimestamp } from './utils';
