@@ -1,41 +1,60 @@
 import { JobStatus, ProcessingStage } from './types';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { logWithTimestamp } from './utils';
 
-// Job storage class that uses the jobs API
-class JobStorage {
-  private baseUrl: string;
+const JOBS_FILE = path.join(process.cwd(), 'public', 'jobs.json');
 
-  constructor() {
-    // Use the same domain for API calls
-    this.baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NODE_ENV === 'production'
-      ? 'https://www.podcastservice.site'
-      : 'http://localhost:3000';
+// Ensure jobs file exists
+async function ensureJobsFile() {
+  try {
+    await fs.access(JOBS_FILE);
+  } catch {
+    // File doesn't exist, create it
+    await fs.writeFile(JOBS_FILE, '{}', 'utf-8');
   }
+}
 
+// Load jobs from file
+async function loadJobs(): Promise<Record<string, JobStatus>> {
+  try {
+    await ensureJobsFile();
+    const data = await fs.readFile(JOBS_FILE, 'utf-8');
+    return JSON.parse(data);
+  } catch (error) {
+    logWithTimestamp('Failed to load jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
+    return {};
+  }
+}
+
+// Save jobs to file
+async function saveJobs(jobs: Record<string, JobStatus>): Promise<void> {
+  try {
+    await ensureJobsFile();
+    await fs.writeFile(JOBS_FILE, JSON.stringify(jobs, null, 2), 'utf-8');
+  } catch (error) {
+    logWithTimestamp('Failed to save jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
+  }
+}
+
+// Job storage class with direct file operations
+class JobStorage {
   async get(jobId: string): Promise<JobStatus | undefined> {
     try {
       logWithTimestamp('Job get requested', { jobId });
       
-      const response = await fetch(`${this.baseUrl}/api/jobs?jobId=${jobId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
+      const jobs = await loadJobs();
+      const job = jobs[jobId];
       
-      if (data.success) {
+      if (job) {
         logWithTimestamp('Job retrieved successfully', { 
           jobId, 
-          stage: data.stage,
-          progress: data.progress 
+          stage: job.stage,
+          progress: job.progress 
         });
-        return data;
+        return job;
       } else {
-        logWithTimestamp('Job not found', { jobId, error: data.error });
+        logWithTimestamp('Job not found', { jobId, availableJobs: Object.keys(jobs) });
         return undefined;
       }
     } catch (error) {
@@ -58,24 +77,15 @@ class JobStorage {
         progress: statusWithTimestamp.progress 
       });
 
-      const response = await fetch(`${this.baseUrl}/api/jobs`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jobId,
-          status: statusWithTimestamp
-        }),
-      });
+      const jobs = await loadJobs();
+      jobs[jobId] = statusWithTimestamp;
+      await saveJobs(jobs);
 
-      const data = await response.json();
-      
-      if (data.success) {
-        logWithTimestamp('Job updated successfully', { jobId, stage: statusWithTimestamp.stage });
-      } else {
-        logWithTimestamp('Job update failed', { jobId, error: data.error });
-      }
+      logWithTimestamp('Job updated successfully', { 
+        jobId, 
+        stage: statusWithTimestamp.stage,
+        totalJobs: Object.keys(jobs).length 
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Job set failed', { jobId, error: errorMessage });
@@ -86,22 +96,12 @@ class JobStorage {
     try {
       logWithTimestamp('Job deletion requested', { jobId });
       
-      const response = await fetch(`${this.baseUrl}/api/jobs?jobId=${jobId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const jobs = await loadJobs();
+      delete jobs[jobId];
+      await saveJobs(jobs);
 
-      const data = await response.json();
-      
-      if (data.success) {
-        logWithTimestamp('Job deleted successfully', { jobId });
-        return true;
-      } else {
-        logWithTimestamp('Job deletion failed', { jobId, error: data.error });
-        return false;
-      }
+      logWithTimestamp('Job deleted successfully', { jobId });
+      return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Job delete failed', { jobId, error: errorMessage });
@@ -115,7 +115,12 @@ class JobStorage {
   }
 
   async clear(): Promise<void> {
-    logWithTimestamp('Job clear requested - not implemented for API storage');
+    try {
+      await saveJobs({});
+      logWithTimestamp('All jobs cleared');
+    } catch (error) {
+      logWithTimestamp('Failed to clear jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
+    }
   }
 }
 
