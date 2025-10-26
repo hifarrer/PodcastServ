@@ -3,8 +3,18 @@ import { logWithTimestamp } from './utils';
 import { createClient } from 'redis';
 
 // Create Redis client
+const redisUrl = process.env.REDIS_URL;
+logWithTimestamp('Redis configuration', { 
+  redisUrl: redisUrl ? 'configured' : 'missing',
+  urlPreview: redisUrl ? redisUrl.substring(0, 20) + '...' : 'none'
+});
+
+if (!redisUrl) {
+  throw new Error('REDIS_URL environment variable is not set');
+}
+
 const redis = createClient({
-  url: process.env.REDIS_URL
+  url: redisUrl
 });
 
 // Connect to Redis
@@ -23,7 +33,7 @@ redis.connect().catch((err) => {
 
 logWithTimestamp('Job storage initialized', { 
   storageType: 'redis',
-  redisUrl: process.env.REDIS_URL ? 'configured' : 'missing'
+  redisUrl: 'configured'
 });
 
 // Job storage class with Redis operations

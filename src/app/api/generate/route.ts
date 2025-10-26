@@ -14,14 +14,16 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     logWithTimestamp('Starting background podcast generation', { jobId });
     
     // Stage 1: Script Generation
-    logWithTimestamp('Stage 1: Script Generation', { jobId });
+    logWithTimestamp('Stage 1: Script Generation - Starting', { jobId });
     await jobs.set(jobId, {
       stage: ProcessingStage.SCRIPT,
       progress: 10,
       message: 'Generating podcast script...'
     });
 
+    logWithTimestamp('Stage 1: Script Generation - Calling OpenAI', { jobId });
     const scriptResult = await generateScript(prompt, options);
+    logWithTimestamp('Stage 1: Script Generation - OpenAI completed', { jobId });
     logWithTimestamp('Script generation completed', { 
       jobId, 
       title: scriptResult.title,
@@ -205,18 +207,26 @@ export async function POST(request: NextRequest) {
       options 
     });
 
-    // For Vercel, we need to run the job synchronously but with progress updates
-    // Start the job in the background but don't await it
-    logWithTimestamp('Starting background processing', { jobId });
+    // For Vercel, run the job synchronously with progress updates
+    // This ensures the job actually runs instead of getting stuck
+    logWithTimestamp('Starting synchronous processing', { jobId });
     
-    // Use Promise.resolve().then() to run in the background
-    Promise.resolve().then(async () => {
+    // Start the processing in the background but don't await it
+    // This allows the response to be sent immediately while processing continues
+    processPodcastGeneration(jobId, prompt, imageFile, options).catch(async (error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Background processing failed', { jobId, error: errorMessage });
+      
+      // Update job status to error
       try {
-        logWithTimestamp('Background processing started', { jobId });
-        await processPodcastGeneration(jobId, prompt, imageFile, options);
-        logWithTimestamp('Background processing completed', { jobId });
-      } catch (error) {
-        logWithTimestamp('Unhandled error in background processing', { jobId, error });
+        await jobs.set(jobId, {
+          stage: ProcessingStage.ERROR,
+          progress: 0,
+          message: `Processing failed: ${errorMessage}`,
+          error: errorMessage
+        });
+      } catch (setError) {
+        logWithTimestamp('Failed to set error status', { jobId, error: setError });
       }
     });
 
