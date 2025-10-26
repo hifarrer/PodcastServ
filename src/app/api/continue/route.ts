@@ -59,59 +59,29 @@ export async function POST(request: NextRequest) {
       audioParts
     });
 
-    // Stage 4: Video Generation
+    // Stage 4: Video Generation (start only)
     logWithTimestamp('Stage 4: Video Generation - Starting', { jobId });
     
     const imageBuffer = Buffer.from(imageFile.data, 'base64');
     const imageUrl = await uploadImageToTempStorage(imageBuffer, imageFile.name);
     
-    const videoUrls = await generateMultipleVideos(audioParts, imageUrl, {
-      prompt: options.style,
-      resolution: '480p',
-      delayBetweenRequests: 2000
-    });
-    
-    logWithTimestamp('Stage 4: Video Generation - Completed', { jobId });
-
     await jobs.set(jobId, {
-      stage: ProcessingStage.VIDEO_MERGE,
-      progress: 60,
-      message: 'Merging video segments...',
-      videoParts: videoUrls
+      stage: ProcessingStage.VIDEO_GENERATION,
+      progress: 40,
+      message: 'Generating video segments...',
+      audioParts,
+      imageUrl
     });
 
-    // Stage 5: Video Merging
-    logWithTimestamp('Stage 5: Video Merging - Starting', { jobId });
-    const mergeResult = await mergeVideos(videoUrls, audioUrl, {
-      dimensions: '1920x1080'
-    });
-
-    await jobs.set(jobId, {
-      stage: ProcessingStage.VIDEO_MERGE,
-      progress: 70,
-      message: 'Waiting for video merge to complete...',
-      mergeJobId: mergeResult.job_id
-    });
-
-    // Poll for merge completion
-    logWithTimestamp('Stage 5: Video Merging - Polling for completion', { jobId });
-    const finalResult = await pollJobStatus(mergeResult.job_id);
-
-    // Stage 6: Complete
-    await jobs.set(jobId, {
-      stage: ProcessingStage.COMPLETE,
-      progress: 100,
-      message: 'Podcast generation completed successfully!',
-      videoUrl: finalResult.download_url
-    });
-
-    logWithTimestamp('Podcast generation completed', { jobId });
-
+    // Return early to avoid timeout, let frontend continue
     return NextResponse.json({
       success: true,
       jobId,
-      message: 'Podcast generation completed successfully!',
-      videoUrl: finalResult.download_url
+      message: 'Audio processing completed! Video generation will continue.',
+      stage: 'VIDEO_GENERATION',
+      progress: 40,
+      audioParts,
+      imageUrl
     });
 
   } catch (error) {

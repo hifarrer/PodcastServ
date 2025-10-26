@@ -5,6 +5,12 @@
     },
     "src/app/api/status/[jobId]/route.ts": {
       "maxDuration": 10
+    },
+    "src/app/api/continue/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/generate-videos/route.ts": {
+      "maxDuration": 300
     }
   }
 }
