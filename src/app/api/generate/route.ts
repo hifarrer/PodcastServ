@@ -15,7 +15,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     
     // Stage 1: Script Generation
     logWithTimestamp('Stage 1: Script Generation', { jobId });
-    jobs.set(jobId, {
+    await jobs.set(jobId, {
       stage: ProcessingStage.SCRIPT,
       progress: 10,
       message: 'Generating podcast script...'
@@ -29,8 +29,9 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       turns: scriptResult.turns.length 
     });
 
-    jobs.set(jobId, {
-      ...jobs.get(jobId)!,
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
+      ...currentStatus!,
       stage: ProcessingStage.AUDIO,
       progress: 20,
       message: 'Generating audio...',
@@ -48,8 +49,9 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       audioUrl 
     });
 
-    jobs.set(jobId, {
-      ...jobs.get(jobId)!,
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
+      ...currentStatus!,
       stage: ProcessingStage.SPLIT,
       progress: 30,
       message: 'Splitting audio into segments...',
@@ -78,8 +80,9 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       audioParts 
     });
 
-    jobs.set(jobId, {
-      ...jobs.get(jobId)!,
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
+      ...currentStatus!,
       stage: ProcessingStage.VIDEO_GENERATION,
       progress: 40,
       message: 'Generating video segments...',
@@ -107,8 +110,9 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       videoUrls 
     });
 
-    jobs.set(jobId, {
-      ...jobs.get(jobId)!,
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
+      ...currentStatus!,
       stage: ProcessingStage.VIDEO_MERGE,
       progress: 60,
       message: 'Merging video segments...',
@@ -126,8 +130,9 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
       mergeJobId: mergeResult.job_id 
     });
 
-    jobs.set(jobId, {
-      ...jobs.get(jobId)!,
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
+      ...currentStatus!,
       stage: ProcessingStage.VIDEO_MERGE,
       progress: 70,
       message: 'Waiting for video merge to complete...',
@@ -144,7 +149,8 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     });
 
     // Stage 6: Complete
-    jobs.set(jobId, {
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
       stage: ProcessingStage.COMPLETE,
       progress: 100,
       message: 'Podcast generation completed successfully!',
@@ -162,7 +168,8 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     
     logWithTimestamp('Background job failed', { jobId, error: errorMessage, stack: errorStack });
     
-    jobs.set(jobId, {
+    const currentStatus = await jobs.get(jobId);
+    await jobs.set(jobId, {
       stage: ProcessingStage.ERROR,
       progress: 0,
       message: `Generation failed: ${errorMessage}`,
@@ -178,7 +185,7 @@ export async function POST(request: NextRequest) {
     logWithTimestamp('Starting podcast generation job', { jobId });
     
     // Initialize job status
-    jobs.set(jobId, {
+    await jobs.set(jobId, {
       stage: ProcessingStage.SCRIPT,
       progress: 0,
       message: 'Starting script generation...'
@@ -219,7 +226,7 @@ export async function POST(request: NextRequest) {
     
     logWithTimestamp('Job initialization failed', { jobId, error: errorMessage });
     
-    jobs.set(jobId, {
+    await jobs.set(jobId, {
       stage: ProcessingStage.ERROR,
       progress: 0,
       message: `Generation failed: ${errorMessage}`,

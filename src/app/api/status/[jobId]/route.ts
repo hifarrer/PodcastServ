@@ -10,7 +10,7 @@ export async function GET(
   
   logWithTimestamp('Status check requested', { jobId });
   
-  const jobStatus = jobs.get(jobId);
+  const jobStatus = await jobs.get(jobId);
   
   if (!jobStatus) {
     logWithTimestamp('Job not found', { jobId });

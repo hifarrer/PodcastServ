@@ -77,6 +77,7 @@ export interface JobStatus {
   stage: ProcessingStage;
   progress: number;
   message: string;
+  timestamp?: number;
   audioUrl?: string;
   videoUrl?: string;
   error?: string;
