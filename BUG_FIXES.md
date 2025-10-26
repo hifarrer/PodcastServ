@@ -13,7 +13,7 @@
 const targetDurationSeconds = (options.targetMinutes || 5) * 60;
 const segmentsCount = Math.ceil(targetDurationSeconds / 30);
 ```
-
+  
 **Result**: Now correctly splits audio into 30-second segments (2 minutes = 4 segments of 30 seconds each).
 
 ### 2. **Wavespeed API Structure Issues** ✅ FIXED
