@@ -1,67 +1,64 @@
-# AI Podcast Generator
+# AI Podcast Generator - Podcasty
 
-Transform your content into professional podcast episodes through a multi-stage AI-powered pipeline.
+A powerful AI-powered podcast generation platform that transforms content into professional podcast episodes through a multi-stage pipeline. Built with Next.js, TypeScript, and Tailwind CSS.
 
-## Features
+## 🎯 Features
 
 - **AI Script Generation**: OpenAI GPT-4o-mini with Anthropic Claude fallback
-- **Text-to-Speech**: ElevenLabs API with multilingual support
-- **Audio Processing**: FFmpeg API for splitting and merging
-- **Video Generation**: Wavespeed AI for lip-sync video creation
-- **Real-time Progress**: Live status updates throughout the generation process
+- **High-Quality TTS**: ElevenLabs multilingual voice synthesis
+- **Video Generation**: Wavespeed AI lip-sync video creation
+- **Audio Processing**: FFmpeg API for audio splitting and video merging
+- **Cloud Storage**: Cloudinary integration for file management
+- **Real-time Progress**: Live progress tracking with detailed logging
+- **Voice Selection**: Dynamic voice loading with preview functionality
+- **Simplified UI**: Streamlined interface for easy podcast creation
 
-## Setup
+## 🚀 Quick Start
 
-1. **Install Dependencies**
+### Prerequisites
+
+- Node.js 18+ and npm
+- API keys for OpenAI, ElevenLabs, Wavespeed, FFmpeg, and Cloudinary
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/hifarrer/PodcastServ.git
+   cd PodcastServ
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. **Environment Variables**
-   Copy `env.example` to `.env.local` and fill in your API keys:
+3. **Configure environment variables**
    ```bash
    cp env.example .env.local
    ```
+   
+   Add your API keys to `.env.local`:
+   ```env
+   OPENAI_API_KEY=your_openai_key
+   ANTHROPIC_API_KEY=your_anthropic_key
+   ELEVENLABS_API_KEY=your_elevenlabs_key
+   WAVESPEED_API_KEY=your_wavespeed_key
+   FFMPEGAPI_KEY=your_ffmpeg_key
+   CLOUDINARY_CLOUD_NAME=your_cloudinary_name
+   CLOUDINARY_API_KEY=your_cloudinary_key
+   CLOUDINARY_API_SECRET=your_cloudinary_secret
+   ```
 
-   Required API keys:
-   - `OPENAI_API_KEY` - OpenAI API key for script generation
-   - `ANTHROPIC_API_KEY` - Anthropic API key (fallback)
-   - `ELEVENLABS_API_KEY` - ElevenLabs API key for TTS
-   - `WAVESPEED_API_KEY` - Wavespeed API key for video generation
-   - `FFMPEGAPI_KEY` - FFmpeg API key for audio/video processing
-   - `CLOUDINARY_CLOUD_NAME` - Cloudinary cloud name for file storage
-   - `CLOUDINARY_API_KEY` - Cloudinary API key
-   - `CLOUDINARY_API_SECRET` - Cloudinary API secret
-
-3. **Set up Cloudinary (for file storage)**
-   - Create a free account at [cloudinary.com](https://cloudinary.com)
-   - Go to your dashboard and copy your credentials:
-     - Cloud Name
-     - API Key  
-     - API Secret
-   - Add these to your `.env.local` file
-
-4. **Run Development Server**
+4. **Run the development server**
    ```bash
    npm run dev
    ```
 
-## Deployment
+5. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
-### Vercel (Recommended)
-
-1. **Deploy to Vercel**
-   ```bash
-   npx vercel
-   ```
-
-2. **Set Environment Variables**
-   In your Vercel dashboard, add all the required environment variables.
-
-3. **Configure Function Timeout**
-   The `vercel.json` file is already configured with appropriate timeouts for long-running operations.
-
-## Usage
+## 📋 Usage
 
 1. **Enter Prompt**: Describe what you want your podcast to be about
 2. **Upload Image**: Select a speaker image for video generation
@@ -73,75 +70,124 @@ Transform your content into professional podcast episodes through a multi-stage 
 5. **Generate**: Click "Generate Podcast" and watch real-time progress
 6. **Download**: Get your final video when generation completes
 
-## Generation Pipeline
+## 🔧 Generation Pipeline
 
 1. **Script Generation**: AI creates structured podcast script with SSML
 2. **Audio Generation**: ElevenLabs converts script to high-quality speech
 3. **Audio Splitting**: FFmpeg splits audio into 30-second segments
 4. **Video Generation**: Wavespeed creates lip-sync videos for each segment
 5. **Video Merging**: FFmpeg combines all segments into final video
-6. **Completion**: Download link provided for final video
+6. **Completion**: Download your professional podcast video
 
-## Technical Details
+## 🛠️ Technical Stack
 
-- **Framework**: Next.js 14+ with App Router
-- **Styling**: Tailwind CSS
-- **TypeScript**: Full type safety
-- **API Integration**: OpenAI, ElevenLabs, Wavespeed, FFmpeg
-- **Voice Selection**: Dynamic voice loading with preview functionality
-- **Simplified UI**: Streamlined form with essential options only
-- **Real-time Updates**: Polling-based status tracking
-- **Error Handling**: Comprehensive logging and fallbacks
+- **Framework**: Next.js 16 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **APIs**: OpenAI, ElevenLabs, Wavespeed, FFmpeg, Cloudinary
+- **Deployment**: Vercel (serverless functions)
 
-## Console Logging
+## 📁 Project Structure
 
-Every step is logged to the console with timestamps for debugging:
+```
+src/
+├── app/
+│   ├── api/
+│   │   ├── generate/route.ts          # Main orchestration endpoint
+│   │   ├── status/[jobId]/route.ts   # Job status polling
+│   │   └── voices/                   # ElevenLabs voice management
+│   ├── page.tsx                      # Main UI page
+│   └── layout.tsx                    # Root layout
+├── components/
+│   ├── GeneratorForm.tsx             # Main form component
+│   └── ProgressTracker.tsx           # Real-time progress display
+└── lib/
+    ├── services/                     # API service integrations
+    ├── types.ts                      # TypeScript interfaces
+    └── utils.ts                      # Helper functions
+```
+
+## 🔑 Required API Keys
+
+| Service | Purpose | Required |
+|---------|---------|----------|
+| OpenAI | Script generation | ✅ |
+| Anthropic | Script generation fallback | ✅ |
+| ElevenLabs | Text-to-speech synthesis | ✅ |
+| Wavespeed | Video generation | ✅ |
+| FFmpeg API | Audio/video processing | ✅ |
+| Cloudinary | File storage | ✅ |
+
+## 📚 Documentation
+
+- [Testing Guide](TESTING_GUIDE.md) - Comprehensive testing instructions
+- [Deployment Checklist](DEPLOYMENT_CHECKLIST.md) - Vercel deployment guide
+- [Cloudinary Setup](CLOUDINARY_SETUP.md) - File storage configuration
+- [Bug Fixes](BUG_FIXES.md) - Known issues and solutions
+
+## 🚀 Deployment
+
+### Vercel Deployment
+
+1. **Connect to Vercel**
+   - Import project from GitHub
+   - Configure environment variables
+   - Deploy with default settings
+
+2. **Environment Variables**
+   Add all required API keys in Vercel dashboard
+
+3. **Function Configuration**
+   - Timeout: 300 seconds (Pro plan)
+   - Memory: 1024 MB
+   - Regions: Auto
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+- **Missing API Keys**: Ensure all environment variables are set
+- **Voice Loading**: Check ElevenLabs API key and network connection
+- **Video Generation**: Verify Wavespeed API key and image format
+- **Audio Processing**: Check FFmpeg API key and audio format
+
+### Debug Mode
+
+All operations are logged to console with timestamps:
 - API request/response details
 - Processing times
 - Error messages with stack traces
 - Progress updates
 
-## Limitations
+## 📊 Performance
 
-- Single-instance deployment (in-memory job storage)
-- Vercel function timeout limits (300s max)
-- No database persistence
-- Internal use only (no authentication)
+- **Script Generation**: ~10-30 seconds
+- **Audio Generation**: ~30-60 seconds
+- **Video Generation**: ~2-5 minutes per segment
+- **Total Pipeline**: ~5-15 minutes (depending on duration)
 
-## Troubleshooting
+## 🔒 Security
 
-Check the browser console and server logs for detailed error information. Common issues:
+- No authentication required (internal use)
+- API keys stored as environment variables
+- Temporary file cleanup after processing
+- No persistent data storage
 
-- Missing API keys
-- API rate limits
-- File upload size limits
-- Network timeouts
+## 📄 License
 
-## Testing
+This project is for internal use only. All API services require their respective subscriptions.
 
-See [TESTING_GUIDE.md](./TESTING_GUIDE.md) for comprehensive testing instructions.
+## 🤝 Contributing
 
-## Deployment
+This is an internal project. For issues or improvements, please contact the development team.
 
-See [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) for deployment instructions.
+## 📞 Support
 
-## File Storage
+For technical support or questions:
+- Check the [Testing Guide](TESTING_GUIDE.md) for common issues
+- Review [Bug Fixes](BUG_FIXES.md) for known solutions
+- Check console logs for detailed error information
 
-This application uses Cloudinary for file storage. See [CLOUDINARY_SETUP.md](./CLOUDINARY_SETUP.md) for setup instructions.
+---
 
-## Support
-
-This is an internal tool. For issues, check the console logs and ensure all API keys are properly configured.
-
-## Implementation Status
-
-✅ **Complete Implementation:**
-- Next.js 14+ with TypeScript and Tailwind CSS
-- OpenAI script generation with Anthropic fallback
-- ElevenLabs voice selection and TTS
-- Cloudinary file storage integration
-- FFmpeg audio splitting and video merging
-- Wavespeed video generation
-- Real-time progress tracking
-- Comprehensive error handling and logging
-- Vercel deployment ready
+**Built with ❤️ for AI-powered podcast creation**
