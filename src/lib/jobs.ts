@@ -1,40 +1,49 @@
 import { JobStatus, ProcessingStage } from './types';
 import { logWithTimestamp } from './utils';
+import { createClient } from 'redis';
 
-// In-memory job storage that persists within the same function instance
-// This is a workaround for Vercel's read-only file system
-const jobStorage = new Map<string, JobStatus>();
-
-// Track if we're in a serverless environment
-const isServerless = process.env.VERCEL || process.env.NODE_ENV === 'production';
-
-logWithTimestamp('Job storage initialized', { 
-  isServerless,
-  storageType: 'in-memory'
+// Create Redis client
+const redis = createClient({
+  url: process.env.REDIS_URL
 });
 
-// Job storage class with in-memory operations
+// Connect to Redis
+redis.on('error', (err) => {
+  logWithTimestamp('Redis Client Error', { error: err.message });
+});
+
+redis.on('connect', () => {
+  logWithTimestamp('Redis Client Connected');
+});
+
+// Connect to Redis
+redis.connect().catch((err) => {
+  logWithTimestamp('Redis Connection Failed', { error: err.message });
+});
+
+logWithTimestamp('Job storage initialized', { 
+  storageType: 'redis',
+  redisUrl: process.env.REDIS_URL ? 'configured' : 'missing'
+});
+
+// Job storage class with Redis operations
 class JobStorage {
   async get(jobId: string): Promise<JobStatus | undefined> {
     try {
       logWithTimestamp('Job get requested', { jobId });
       
-      const job = jobStorage.get(jobId);
+      const jobData = await redis.get(`job:${jobId}`);
       
-      if (job) {
+      if (jobData) {
+        const job = JSON.parse(jobData) as JobStatus;
         logWithTimestamp('Job retrieved successfully', { 
           jobId, 
           stage: job.stage,
-          progress: job.progress,
-          totalJobs: jobStorage.size
+          progress: job.progress
         });
         return job;
       } else {
-        logWithTimestamp('Job not found', { 
-          jobId, 
-          availableJobs: Array.from(jobStorage.keys()),
-          totalJobs: jobStorage.size
-        });
+        logWithTimestamp('Job not found', { jobId });
         return undefined;
       }
     } catch (error) {
@@ -57,12 +66,11 @@ class JobStorage {
         progress: statusWithTimestamp.progress 
       });
 
-      jobStorage.set(jobId, statusWithTimestamp);
+      await redis.setEx(`job:${jobId}`, 3600, JSON.stringify(statusWithTimestamp)); // Expire after 1 hour
 
       logWithTimestamp('Job updated successfully', { 
         jobId, 
-        stage: statusWithTimestamp.stage,
-        totalJobs: jobStorage.size 
+        stage: statusWithTimestamp.stage
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -75,10 +83,10 @@ class JobStorage {
     try {
       logWithTimestamp('Job deletion requested', { jobId });
       
-      const deleted = jobStorage.delete(jobId);
+      const result = await redis.del(`job:${jobId}`);
 
-      logWithTimestamp('Job deleted successfully', { jobId, deleted, totalJobs: jobStorage.size });
-      return deleted;
+      logWithTimestamp('Job deleted successfully', { jobId, deleted: result > 0 });
+      return result > 0;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Job delete failed', { jobId, error: errorMessage });
@@ -87,13 +95,18 @@ class JobStorage {
   }
 
   async has(jobId: string): Promise<boolean> {
-    return jobStorage.has(jobId);
+    const job = await this.get(jobId);
+    return !!job;
   }
 
   async clear(): Promise<void> {
     try {
-      jobStorage.clear();
-      logWithTimestamp('All jobs cleared', { totalJobs: jobStorage.size });
+      // Get all job keys and delete them
+      const keys = await redis.keys('job:*');
+      if (keys.length > 0) {
+        await redis.del(keys);
+      }
+      logWithTimestamp('All jobs cleared', { deletedKeys: keys.length });
     } catch (error) {
       logWithTimestamp('Failed to clear jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
