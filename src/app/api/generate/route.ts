@@ -8,37 +8,11 @@ import { generateJobId, logWithTimestamp } from '@/lib/utils';
 import { ProcessingStage, JobStatus, ScriptGenerationOptions } from '@/lib/types';
 import { jobs } from '@/lib/jobs';
 
-export async function POST(request: NextRequest) {
-  const jobId = generateJobId();
-  
+// Background processing function
+async function processPodcastGeneration(jobId: string, prompt: string, imageFile: File, options: ScriptGenerationOptions) {
   try {
-    logWithTimestamp('Starting podcast generation job', { jobId });
+    logWithTimestamp('Starting background podcast generation', { jobId });
     
-    // Initialize job status
-    jobs.set(jobId, {
-      stage: ProcessingStage.SCRIPT,
-      progress: 0,
-      message: 'Starting script generation...'
-    });
-
-    const formData = await request.formData();
-    const prompt = formData.get('prompt') as string;
-    const imageFile = formData.get('image') as File;
-    const optionsJson = formData.get('options') as string;
-    
-    if (!prompt || !imageFile || !optionsJson) {
-      throw new Error('Missing required fields: prompt, image, or options');
-    }
-
-    const options: ScriptGenerationOptions = JSON.parse(optionsJson);
-    logWithTimestamp('Job parameters received', { 
-      jobId, 
-      promptLength: prompt.length,
-      imageName: imageFile.name,
-      imageSize: imageFile.size,
-      options 
-    });
-
     // Stage 1: Script Generation
     logWithTimestamp('Stage 1: Script Generation', { jobId });
     jobs.set(jobId, {
@@ -182,18 +156,68 @@ export async function POST(request: NextRequest) {
       finalVideoUrl: finalResult.download_url 
     });
 
-    return NextResponse.json({
-      success: true,
-      jobId,
-      videoUrl: finalResult.download_url,
-      message: 'Podcast generation completed successfully!'
-    });
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorStack = error instanceof Error ? error.stack : undefined;
     
-    logWithTimestamp('Job failed', { jobId, error: errorMessage, stack: errorStack });
+    logWithTimestamp('Background job failed', { jobId, error: errorMessage, stack: errorStack });
+    
+    jobs.set(jobId, {
+      stage: ProcessingStage.ERROR,
+      progress: 0,
+      message: `Generation failed: ${errorMessage}`,
+      error: errorMessage
+    });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const jobId = generateJobId();
+  
+  try {
+    logWithTimestamp('Starting podcast generation job', { jobId });
+    
+    // Initialize job status
+    jobs.set(jobId, {
+      stage: ProcessingStage.SCRIPT,
+      progress: 0,
+      message: 'Starting script generation...'
+    });
+
+    const formData = await request.formData();
+    const prompt = formData.get('prompt') as string;
+    const imageFile = formData.get('image') as File;
+    const optionsJson = formData.get('options') as string;
+    
+    if (!prompt || !imageFile || !optionsJson) {
+      throw new Error('Missing required fields: prompt, image, or options');
+    }
+
+    const options: ScriptGenerationOptions = JSON.parse(optionsJson);
+    logWithTimestamp('Job parameters received', { 
+      jobId, 
+      promptLength: prompt.length,
+      imageName: imageFile.name,
+      imageSize: imageFile.size,
+      options 
+    });
+
+    // Start background processing (don't await)
+    processPodcastGeneration(jobId, prompt, imageFile, options).catch(error => {
+      logWithTimestamp('Unhandled error in background processing', { jobId, error });
+    });
+
+    // Return immediately with jobId
+    return NextResponse.json({
+      success: true,
+      jobId,
+      message: 'Podcast generation started successfully!'
+    });
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    logWithTimestamp('Job initialization failed', { jobId, error: errorMessage });
     
     jobs.set(jobId, {
       stage: ProcessingStage.ERROR,
@@ -206,7 +230,7 @@ export async function POST(request: NextRequest) {
       success: false,
       jobId,
       error: errorMessage,
-      message: 'Podcast generation failed'
+      message: 'Podcast generation failed to start'
     }, { status: 500 });
   }
 }
