@@ -38,20 +38,29 @@ logWithTimestamp('Job storage initialized', {
 
 // Job storage class with Redis operations
 class JobStorage {
-  async get(jobId: string): Promise<JobStatus | undefined> {
+  async get(jobId: string): Promise<JobStatus | string | undefined> {
     try {
       logWithTimestamp('Job get requested', { jobId });
       
       const jobData = await redis.get(`job:${jobId}`);
       
       if (jobData) {
-        const job = JSON.parse(jobData) as JobStatus;
-        logWithTimestamp('Job retrieved successfully', { 
-          jobId, 
-          stage: job.stage,
-          progress: job.progress
-        });
-        return job;
+        // Try to parse as JobStatus first, fallback to string
+        try {
+          const job = JSON.parse(jobData) as JobStatus;
+          if (job.stage && job.progress !== undefined) {
+            logWithTimestamp('Job retrieved successfully', { 
+              jobId, 
+              stage: job.stage,
+              progress: job.progress
+            });
+            return job;
+          }
+        } catch {
+          // If parsing fails or doesn't look like JobStatus, return as string
+          logWithTimestamp('String value retrieved successfully', { jobId });
+          return jobData;
+        }
       } else {
         logWithTimestamp('Job not found', { jobId });
         return undefined;
@@ -63,25 +72,34 @@ class JobStorage {
     }
   }
 
-  async set(jobId: string, status: JobStatus): Promise<void> {
+  async set(jobId: string, status: JobStatus | string): Promise<void> {
     try {
-      const statusWithTimestamp = {
-        ...status,
-        timestamp: status.timestamp || Date.now()
-      };
+      logWithTimestamp('Job set requested', { jobId });
 
-      logWithTimestamp('Job set requested', { 
-        jobId, 
-        stage: statusWithTimestamp.stage,
-        progress: statusWithTimestamp.progress 
-      });
+      if (typeof status === 'string') {
+        // Store string values directly
+        await redis.setEx(`job:${jobId}`, 3600, status); // Expire after 1 hour
+        logWithTimestamp('String value stored successfully', { jobId });
+      } else {
+        // Store JobStatus objects with timestamp
+        const statusWithTimestamp = {
+          ...status,
+          timestamp: status.timestamp || Date.now()
+        };
 
-      await redis.setEx(`job:${jobId}`, 3600, JSON.stringify(statusWithTimestamp)); // Expire after 1 hour
+        logWithTimestamp('Job set requested', { 
+          jobId, 
+          stage: statusWithTimestamp.stage,
+          progress: statusWithTimestamp.progress 
+        });
 
-      logWithTimestamp('Job updated successfully', { 
-        jobId, 
-        stage: statusWithTimestamp.stage
-      });
+        await redis.setEx(`job:${jobId}`, 3600, JSON.stringify(statusWithTimestamp)); // Expire after 1 hour
+
+        logWithTimestamp('Job updated successfully', { 
+          jobId, 
+          stage: statusWithTimestamp.stage
+        });
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Job set failed', { jobId, error: errorMessage });

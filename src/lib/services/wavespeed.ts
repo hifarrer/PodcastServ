@@ -1,11 +1,9 @@
 import axios from 'axios';
 import { WavespeedRequest, WavespeedResponse } from '@/lib/types';
 import { logWithTimestamp, sleep } from '@/lib/utils';
+import { jobs } from '@/lib/jobs';
 
 const WAVESPEED_API_KEY = process.env.WAVESPEED_API_KEY;
-
-// Cache to prevent duplicate API calls with identical parameters
-const videoGenerationCache = new Map<string, Promise<string>>();
 
 export async function generateLipsyncVideo(
   audioUrl: string, 
@@ -17,24 +15,13 @@ export async function generateLipsyncVideo(
   } = {}
 ): Promise<string> {
   // Create a cache key based on all parameters
-  const cacheKey = JSON.stringify({
+  const cacheKey = `video_gen:${JSON.stringify({
     audioUrl,
     imageUrl,
     prompt: options.prompt || '',
     resolution: options.resolution || '480p',
     seed: options.seed || -1
-  });
-
-  // Check if we already have a pending or completed request for these exact parameters
-  if (videoGenerationCache.has(cacheKey)) {
-    logWithTimestamp('Using cached video generation request', { 
-      cacheKey,
-      audioUrl, 
-      imageUrl, 
-      options 
-    });
-    return await videoGenerationCache.get(cacheKey)!;
-  }
+  })}`;
 
   logWithTimestamp('Starting Wavespeed video generation', { 
     audioUrl, 
@@ -47,17 +34,101 @@ export async function generateLipsyncVideo(
     throw new Error('WAVESPEED_API_KEY not configured');
   }
 
-  // Create the promise and cache it immediately to prevent duplicate requests
-  const videoGenerationPromise = generateVideoInternal(audioUrl, imageUrl, options);
-  videoGenerationCache.set(cacheKey, videoGenerationPromise);
+  // Check if we already have a result for these exact parameters
+  try {
+    const cachedResult = await jobs.get(cacheKey);
+    if (cachedResult && typeof cachedResult === 'string') {
+      logWithTimestamp('Using cached video generation result', { 
+        cacheKey,
+        audioUrl, 
+        imageUrl, 
+        options,
+        cachedResult
+      });
+      return cachedResult;
+    }
+  } catch (error) {
+    logWithTimestamp('Error checking cache, proceeding with generation', { 
+      cacheKey, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+
+  // Check if another request is already processing the same parameters
+  const lockKey = `${cacheKey}:lock`;
+  try {
+    const existingLock = await jobs.get(lockKey);
+    if (existingLock) {
+      logWithTimestamp('Another request is already processing these parameters, waiting...', { 
+        cacheKey,
+        lockKey,
+        existingLock
+      });
+      
+      // Wait and retry for up to 5 minutes
+      for (let attempt = 0; attempt < 60; attempt++) {
+        await sleep(5000); // Wait 5 seconds
+        
+        const cachedResult = await jobs.get(cacheKey);
+        if (cachedResult && typeof cachedResult === 'string') {
+          logWithTimestamp('Found cached result after waiting', { 
+            cacheKey,
+            attempt,
+            cachedResult
+          });
+          return cachedResult;
+        }
+      }
+      
+      logWithTimestamp('Timeout waiting for other request, proceeding anyway', { cacheKey });
+    }
+  } catch (error) {
+    logWithTimestamp('Error checking lock, proceeding with generation', { 
+      lockKey, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+
+  // Set a lock to prevent other simultaneous requests
+  try {
+    await jobs.set(lockKey, Date.now().toString());
+    logWithTimestamp('Set processing lock', { lockKey });
+  } catch (error) {
+    logWithTimestamp('Failed to set lock, proceeding anyway', { 
+      lockKey, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
 
   try {
-    const result = await videoGenerationPromise;
+    const result = await generateVideoInternal(audioUrl, imageUrl, options);
+    
+    // Cache the result for future use
+    try {
+      await jobs.set(cacheKey, result);
+      logWithTimestamp('Cached video generation result', { cacheKey, result });
+    } catch (cacheError) {
+      logWithTimestamp('Failed to cache result, but generation succeeded', { 
+        cacheKey, 
+        result,
+        error: cacheError instanceof Error ? cacheError.message : 'Unknown error' 
+      });
+    }
+    
     return result;
   } catch (error) {
-    // Remove from cache on error so it can be retried
-    videoGenerationCache.delete(cacheKey);
     throw error;
+  } finally {
+    // Always remove the lock
+    try {
+      await jobs.delete(lockKey);
+      logWithTimestamp('Removed processing lock', { lockKey });
+    } catch (error) {
+      logWithTimestamp('Failed to remove lock', { 
+        lockKey, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
   }
 }
 
