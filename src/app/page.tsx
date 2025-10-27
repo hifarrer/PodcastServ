@@ -13,6 +13,7 @@ export default function Home() {
   const [scriptResult, setScriptResult] = useState<any>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [options, setOptions] = useState<ScriptGenerationOptions | null>(null);
+  const [continueCallMade, setContinueCallMade] = useState(false);
 
   const handleGenerate = async (data: {
     prompt: string;
@@ -28,6 +29,7 @@ export default function Home() {
     setIsGenerating(true);
     setShowProgress(true);
     setJobId(null);
+    setContinueCallMade(false); // Reset the flag for new generation
 
     try {
       const formData = new FormData();
@@ -77,9 +79,16 @@ export default function Home() {
     setScriptResult(null);
     setImageFile(null);
     setOptions(null);
+    setContinueCallMade(false);
   };
 
   const handleContinue = async () => {
+    // Prevent multiple calls
+    if (continueCallMade) {
+      logWithTimestamp('Continue already called, skipping', { jobId });
+      return;
+    }
+
     if (!jobId || !scriptResult || !imageFile || !options) {
       logWithTimestamp('Cannot continue - missing required data', {
         hasJobId: !!jobId,
@@ -89,6 +98,9 @@ export default function Home() {
       });
       return;
     }
+
+    // Mark as called immediately to prevent race conditions
+    setContinueCallMade(true);
 
     try {
       logWithTimestamp('Calling continue endpoint', { jobId });
@@ -123,6 +135,8 @@ export default function Home() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Continue request failed', { jobId, error: errorMessage });
+      // Reset the flag on error so it can be retried
+      setContinueCallMade(false);
       alert(`Continue failed: ${errorMessage}`);
     }
   };
