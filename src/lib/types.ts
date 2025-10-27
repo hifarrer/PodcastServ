@@ -85,6 +85,7 @@ export interface JobStatus {
   audioParts?: string[];
   videoParts?: string[];
   mergeJobId?: string;
+  imageUrl?: string;
 }
 
 export interface GenerateRequest {
