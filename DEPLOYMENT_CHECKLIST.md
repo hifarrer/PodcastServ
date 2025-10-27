@@ -16,7 +16,7 @@ Ensure all these are configured in your deployment platform (Vercel):
 - [ ] `CLOUDINARY_CLOUD_NAME` - Your Cloudinary cloud name
 - [ ] `CLOUDINARY_API_KEY` - Your Cloudinary API key
 - [ ] `CLOUDINARY_API_SECRET` - Your Cloudinary API secret
-
+ 
 ### **2. Vercel Deployment**
 
 #### **Deploy to Vercel:**
