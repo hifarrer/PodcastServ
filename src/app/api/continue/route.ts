@@ -59,34 +59,103 @@ export async function POST(request: NextRequest) {
       audioParts
     });
 
-    // Stage 4: Video Generation (start only)
+    // Stage 4: Video Generation
     logWithTimestamp('Stage 4: Video Generation - Starting', { jobId });
     
     const imageBuffer = Buffer.from(imageFile.data, 'base64');
     const imageUrl = await uploadImageToTempStorage(imageBuffer, imageFile.name);
     
-    await jobs.set(jobId, {
-      stage: ProcessingStage.VIDEO_GENERATION,
-      progress: 40,
-      message: 'Generating video segments...',
-      audioParts,
-      imageUrl
+    logWithTimestamp('Image uploaded to Cloudinary', { imageUrl });
+    
+    const videoUrls = await generateMultipleVideos(audioParts, imageUrl, {
+      prompt: options.style,
+      resolution: '480p',
+      delayBetweenRequests: 2000
+    });
+    
+    logWithTimestamp('Video generation completed', { 
+      jobId, 
+      videoCount: videoUrls.length,
+      videoUrls 
     });
 
-    // Return early to avoid timeout, let frontend continue
+    await jobs.set(jobId, {
+      stage: ProcessingStage.VIDEO_MERGE,
+      progress: 60,
+      message: 'Merging video segments...',
+      videoParts: videoUrls
+    });
+
+    // Stage 5: Video Merging
+    logWithTimestamp('Stage 5: Video Merging', { jobId });
+    const mergeResult = await mergeVideos(videoUrls, audioUrl, {
+      dimensions: '1920x1080'
+    });
+    
+    logWithTimestamp('Video merge job submitted', { 
+      jobId, 
+      mergeJobId: mergeResult.job_id 
+    });
+
+    await jobs.set(jobId, {
+      stage: ProcessingStage.VIDEO_MERGE,
+      progress: 70,
+      message: 'Waiting for video merge to complete...',
+      mergeJobId: mergeResult.job_id
+    });
+
+    // Poll for merge completion
+    logWithTimestamp('Polling for merge completion', { jobId, mergeJobId: mergeResult.job_id });
+    const finalResult = await pollJobStatus(mergeResult.job_id);
+    
+    logWithTimestamp('Video merge completed', { 
+      jobId, 
+      finalVideoUrl: finalResult.download_url 
+    });
+
+    // Stage 6: Complete
+    await jobs.set(jobId, {
+      stage: ProcessingStage.COMPLETE,
+      progress: 100,
+      message: 'Podcast generation completed successfully!',
+      videoUrl: finalResult.download_url
+    });
+
+    logWithTimestamp('Job completed successfully', { 
+      jobId, 
+      finalVideoUrl: finalResult.download_url 
+    });
+
+    // Return success with final result
     return NextResponse.json({
       success: true,
       jobId,
-      message: 'Audio processing completed! Video generation will continue.',
-      stage: 'VIDEO_GENERATION',
-      progress: 40,
-      audioParts,
-      imageUrl
+      message: 'Podcast generation completed successfully!',
+      stage: 'COMPLETE',
+      progress: 100,
+      videoUrl: finalResult.download_url
     });
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logWithTimestamp('Continue processing failed', { error: errorMessage });
+    
+    // Update job status to error
+    if (jobId) {
+      try {
+        await jobs.set(jobId, {
+          stage: ProcessingStage.ERROR,
+          progress: 0,
+          message: `Processing failed: ${errorMessage}`,
+          error: errorMessage
+        });
+      } catch (jobUpdateError) {
+        logWithTimestamp('Failed to update job status with error', { 
+          jobId, 
+          error: jobUpdateError instanceof Error ? jobUpdateError.message : 'Unknown error' 
+        });
+      }
+    }
     
     return NextResponse.json({
       success: false,
