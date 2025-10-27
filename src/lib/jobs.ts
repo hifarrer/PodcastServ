@@ -139,6 +139,52 @@ class JobStorage {
       logWithTimestamp('Failed to clear jobs', { error: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
+
+  /**
+   * Acquire a distributed lock for a job using Redis SET NX (SET if Not eXists)
+   * Returns true if lock was acquired, false if already locked
+   */
+  async acquireLock(jobId: string, ttlSeconds: number = 600): Promise<boolean> {
+    try {
+      logWithTimestamp('Attempting to acquire lock', { jobId, ttl: ttlSeconds });
+      
+      // SET NX EX - Set if not exists with expiration
+      const result = await redis.set(`lock:${jobId}`, 'locked', {
+        NX: true, // Only set if doesn't exist
+        EX: ttlSeconds // Expire after ttlSeconds (default 10 minutes)
+      });
+      
+      const acquired = result === 'OK';
+      logWithTimestamp(acquired ? 'Lock acquired' : 'Lock already held by another process', { 
+        jobId,
+        acquired 
+      });
+      
+      return acquired;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Lock acquisition failed', { jobId, error: errorMessage });
+      return false;
+    }
+  }
+
+  /**
+   * Release a distributed lock for a job
+   */
+  async releaseLock(jobId: string): Promise<boolean> {
+    try {
+      logWithTimestamp('Releasing lock', { jobId });
+      
+      const result = await redis.del(`lock:${jobId}`);
+      
+      logWithTimestamp('Lock released', { jobId, wasLocked: result > 0 });
+      return result > 0;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Lock release failed', { jobId, error: errorMessage });
+      return false;
+    }
+  }
 }
 
 // Export singleton instance
