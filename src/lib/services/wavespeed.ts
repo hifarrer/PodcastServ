@@ -4,6 +4,9 @@ import { logWithTimestamp, sleep } from '@/lib/utils';
 
 const WAVESPEED_API_KEY = process.env.WAVESPEED_API_KEY;
 
+// Cache to prevent duplicate API calls with identical parameters
+const videoGenerationCache = new Map<string, Promise<string>>();
+
 export async function generateLipsyncVideo(
   audioUrl: string, 
   imageUrl: string, 
@@ -13,16 +16,60 @@ export async function generateLipsyncVideo(
     seed?: number;
   } = {}
 ): Promise<string> {
+  // Create a cache key based on all parameters
+  const cacheKey = JSON.stringify({
+    audioUrl,
+    imageUrl,
+    prompt: options.prompt || '',
+    resolution: options.resolution || '480p',
+    seed: options.seed || -1
+  });
+
+  // Check if we already have a pending or completed request for these exact parameters
+  if (videoGenerationCache.has(cacheKey)) {
+    logWithTimestamp('Using cached video generation request', { 
+      cacheKey,
+      audioUrl, 
+      imageUrl, 
+      options 
+    });
+    return await videoGenerationCache.get(cacheKey)!;
+  }
+
   logWithTimestamp('Starting Wavespeed video generation', { 
     audioUrl, 
     imageUrl, 
-    options 
+    options,
+    cacheKey
   });
 
   if (!WAVESPEED_API_KEY) {
     throw new Error('WAVESPEED_API_KEY not configured');
   }
 
+  // Create the promise and cache it immediately to prevent duplicate requests
+  const videoGenerationPromise = generateVideoInternal(audioUrl, imageUrl, options);
+  videoGenerationCache.set(cacheKey, videoGenerationPromise);
+
+  try {
+    const result = await videoGenerationPromise;
+    return result;
+  } catch (error) {
+    // Remove from cache on error so it can be retried
+    videoGenerationCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function generateVideoInternal(
+  audioUrl: string, 
+  imageUrl: string, 
+  options: {
+    prompt?: string;
+    resolution?: string;
+    seed?: number;
+  } = {}
+): Promise<string> {
   try {
     const startTime = Date.now();
     
@@ -220,35 +267,76 @@ export async function generateMultipleVideos(
     options 
   });
 
-  const results: string[] = [];
+  // Deduplicate audio URLs to prevent duplicate API calls
+  const uniqueAudioUrls = [...new Set(audioUrls)];
+  const audioUrlToIndex = new Map<string, number[]>();
+  
+  // Map each unique URL to its original indices
+  audioUrls.forEach((url, index) => {
+    if (!audioUrlToIndex.has(url)) {
+      audioUrlToIndex.set(url, []);
+    }
+    audioUrlToIndex.get(url)!.push(index);
+  });
+
+  logWithTimestamp('Audio URL deduplication', {
+    originalCount: audioUrls.length,
+    uniqueCount: uniqueAudioUrls.length,
+    duplicates: audioUrls.length - uniqueAudioUrls.length,
+    audioUrlMapping: Array.from(audioUrlToIndex.entries()).map(([url, indices]) => ({
+      url,
+      indices,
+      count: indices.length
+    }))
+  });
+
+  const results: string[] = new Array(audioUrls.length); // Pre-allocate array
   const delayBetweenRequests = options.delayBetweenRequests || 2000; // 2 seconds default
 
-  for (let i = 0; i < audioUrls.length; i++) {
+  // Process only unique audio URLs
+  for (let i = 0; i < uniqueAudioUrls.length; i++) {
     try {
-      logWithTimestamp(`Generating video ${i + 1}/${audioUrls.length}`, { 
-        audioUrl: audioUrls[i],
-        index: i 
+      const audioUrl = uniqueAudioUrls[i];
+      const originalIndices = audioUrlToIndex.get(audioUrl)!;
+      
+      logWithTimestamp(`Generating video ${i + 1}/${uniqueAudioUrls.length}`, { 
+        audioUrl,
+        uniqueIndex: i,
+        originalIndices,
+        allAudioUrls: audioUrls
       });
 
-      const videoUrl = await generateLipsyncVideo(audioUrls[i], imageUrl, {
+      const videoUrl = await generateLipsyncVideo(audioUrl, imageUrl, {
         ...options,
-        seed: (options.seed || -1) + i // Vary seed for each video
+        seed: (options.seed || -1) + i // Vary seed for each unique video
       });
 
-      results.push(videoUrl);
-      logWithTimestamp(`Video ${i + 1} completed`, { videoUrl });
+      // Assign the same video URL to all original indices that had this audio URL
+      originalIndices.forEach(originalIndex => {
+        results[originalIndex] = videoUrl;
+      });
+      
+      logWithTimestamp(`Video ${i + 1} completed`, { 
+        videoUrl,
+        assignedToIndices: originalIndices,
+        originalIndices
+      });
 
       // Add delay between requests to avoid rate limiting
-      if (i < audioUrls.length - 1) {
+      if (i < uniqueAudioUrls.length - 1) {
         logWithTimestamp(`Waiting ${delayBetweenRequests}ms before next request`);
         await sleep(delayBetweenRequests);
       }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const audioUrl = uniqueAudioUrls[i];
+      const originalIndices = audioUrlToIndex.get(audioUrl)!;
+      
       logWithTimestamp(`Video ${i + 1} generation failed`, { 
-        index: i,
-        audioUrl: audioUrls[i],
+        uniqueIndex: i,
+        audioUrl,
+        originalIndices,
         error: errorMessage 
       });
       throw new Error(`Video ${i + 1} generation failed: ${errorMessage}`);
@@ -256,7 +344,9 @@ export async function generateMultipleVideos(
   }
 
   logWithTimestamp('All videos generated successfully', { 
-    count: results.length,
+    originalCount: audioUrls.length,
+    uniqueCount: uniqueAudioUrls.length,
+    resultsCount: results.length,
     urls: results 
   });
 
