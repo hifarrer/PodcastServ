@@ -358,7 +358,9 @@ export async function generateMultipleVideos(
       url,
       indices,
       count: indices.length
-    }))
+    })),
+    originalAudioUrls: audioUrls,
+    uniqueAudioUrls: uniqueAudioUrls
   });
 
   const results: string[] = new Array(audioUrls.length); // Pre-allocate array
@@ -418,7 +420,13 @@ export async function generateMultipleVideos(
     originalCount: audioUrls.length,
     uniqueCount: uniqueAudioUrls.length,
     resultsCount: results.length,
-    urls: results 
+    results: results,
+    originalAudioUrls: audioUrls,
+    finalMapping: results.map((videoUrl, index) => ({
+      index,
+      audioUrl: audioUrls[index],
+      videoUrl
+    }))
   });
 
   return results;
