@@ -130,10 +130,24 @@ export default function Home() {
       if (result.success) {
         logWithTimestamp('Continue request successful', { jobId });
       } else {
+        // If job is already being processed (409 conflict), don't show error
+        if (result.code === 'JOB_LOCKED') {
+          logWithTimestamp('Continue request rejected - job already processing', { jobId });
+          // Don't reset flag - let the existing process complete
+          return;
+        }
         throw new Error(result.error || 'Continue request failed');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check if it's a 409 conflict (job already processing)
+      if (errorMessage.includes('already being processed')) {
+        logWithTimestamp('Continue request rejected - job already processing', { jobId, error: errorMessage });
+        // Silent fail - don't show alert, don't reset flag
+        return;
+      }
+      
       logWithTimestamp('Continue request failed', { jobId, error: errorMessage });
       // Reset the flag on error so it can be retried
       setContinueCallMade(false);

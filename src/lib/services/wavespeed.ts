@@ -217,6 +217,65 @@ export async function pollVideoResult(requestId: string, maxAttempts: number = 1
   throw new Error(`Video generation did not complete within ${maxAttempts} attempts (${maxAttempts * 5} seconds)`);
 }
 
+/**
+ * Submit a video generation request and return the request ID
+ * This does NOT wait for completion - just submits the request
+ */
+async function submitVideoRequest(
+  audioUrl: string, 
+  imageUrl: string, 
+  options: {
+    prompt?: string;
+    resolution?: string;
+    seed?: number;
+  } = {}
+): Promise<string> {
+  try {
+    const requestData: WavespeedRequest = {
+      audio: audioUrl,
+      image: imageUrl,
+      prompt: options.prompt || '',
+      resolution: options.resolution || '480p',
+      seed: options.seed || -1
+    };
+
+    logWithTimestamp('Submitting Wavespeed request', requestData);
+
+    const response = await axios.post(
+      'https://api.wavespeed.ai/api/v3/wavespeed-ai/infinitetalk',
+      requestData,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${WAVESPEED_API_KEY}`
+        },
+        timeout: 30000
+      }
+    );
+
+    const requestId = response.data.data?.id || response.data.id;
+    
+    logWithTimestamp('Wavespeed request submitted', {
+      requestId,
+      audioUrl,
+      status: response.data.data?.status || response.data.status
+    });
+
+    return requestId;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logWithTimestamp('Failed to submit Wavespeed request', {
+      audioUrl,
+      error: errorMessage
+    });
+    throw new Error(`Failed to submit video request: ${errorMessage}`);
+  }
+}
+
+/**
+ * Process videos in batches with concurrency limit
+ * Maximum 8 concurrent video generations at a time
+ */
 export async function generateMultipleVideos(
   audioUrls: string[], 
   imageUrl: string, 
@@ -224,65 +283,100 @@ export async function generateMultipleVideos(
     prompt?: string;
     resolution?: string;
     seed?: number;
-    delayBetweenRequests?: number;
+    concurrencyLimit?: number;
   } = {}
 ): Promise<string[]> {
-  logWithTimestamp('Starting multiple video generation', { 
+  const concurrencyLimit = options.concurrencyLimit || 8; // Wavespeed limit
+  
+  logWithTimestamp('Starting parallel video generation', { 
     audioCount: audioUrls.length,
     imageUrl,
-    options,
-    audioUrls
+    concurrencyLimit,
+    options
   });
 
-  const results: string[] = [];
-  const delayBetweenRequests = options.delayBetweenRequests || 2000; // 2 seconds default
+  if (!WAVESPEED_API_KEY) {
+    throw new Error('WAVESPEED_API_KEY not configured');
+  }
 
-  for (let i = 0; i < audioUrls.length; i++) {
-    try {
-      logWithTimestamp(`Generating video ${i + 1}/${audioUrls.length}`, { 
-        audioUrl: audioUrls[i],
-        index: i,
-        allAudioUrls: audioUrls
-      });
+  // Step 1: Submit all requests immediately (in batches if needed)
+  const requestIds: { audioUrl: string; requestId: string; index: number }[] = [];
+  
+  // Process submissions in batches to avoid overwhelming the API
+  for (let i = 0; i < audioUrls.length; i += concurrencyLimit) {
+    const batch = audioUrls.slice(i, i + concurrencyLimit);
+    
+    logWithTimestamp(`Submitting batch ${Math.floor(i / concurrencyLimit) + 1}`, {
+      batchSize: batch.length,
+      totalBatches: Math.ceil(audioUrls.length / concurrencyLimit)
+    });
 
-      const videoUrl = await generateLipsyncVideo(audioUrls[i], imageUrl, {
+    // Submit all requests in this batch in parallel
+    const batchPromises = batch.map((audioUrl, batchIndex) => {
+      const globalIndex = i + batchIndex;
+      return submitVideoRequest(audioUrl, imageUrl, {
         ...options,
-        seed: (options.seed || -1) + i // Vary seed for each video
-      });
+        seed: (options.seed || -1) + globalIndex
+      }).then(requestId => ({
+        audioUrl,
+        requestId,
+        index: globalIndex
+      }));
+    });
 
-      results.push(videoUrl);
-      logWithTimestamp(`Video ${i + 1} completed`, { 
-        videoUrl,
-        audioUrl: audioUrls[i],
-        index: i
-      });
+    const batchResults = await Promise.all(batchPromises);
+    requestIds.push(...batchResults);
+    
+    logWithTimestamp(`Batch ${Math.floor(i / concurrencyLimit) + 1} submitted`, {
+      requestCount: batchResults.length,
+      requestIds: batchResults.map(r => r.requestId)
+    });
 
-      // Add delay between requests to avoid rate limiting
-      if (i < audioUrls.length - 1) {
-        logWithTimestamp(`Waiting ${delayBetweenRequests}ms before next request`);
-        await sleep(delayBetweenRequests);
-      }
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logWithTimestamp(`Video ${i + 1} generation failed`, { 
-        index: i,
-        audioUrl: audioUrls[i],
-        error: errorMessage 
-      });
-      throw new Error(`Video ${i + 1} generation failed: ${errorMessage}`);
+    // Small delay between batches to be nice to the API
+    if (i + concurrencyLimit < audioUrls.length) {
+      await sleep(1000);
     }
   }
 
+  logWithTimestamp('All video requests submitted, now polling for completion', {
+    totalRequests: requestIds.length,
+    requestIds: requestIds.map(r => ({ index: r.index, requestId: r.requestId }))
+  });
+
+  // Step 2: Poll all requests for completion in parallel
+  const pollPromises = requestIds.map(({ audioUrl, requestId, index }) => 
+    pollVideoResult(requestId)
+      .then(videoUrl => {
+        logWithTimestamp(`Video ${index + 1}/${audioUrls.length} completed`, {
+          index,
+          audioUrl,
+          videoUrl,
+          requestId
+        });
+        return { index, videoUrl };
+      })
+      .catch(error => {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logWithTimestamp(`Video ${index + 1}/${audioUrls.length} failed`, {
+          index,
+          audioUrl,
+          requestId,
+          error: errorMessage
+        });
+        throw new Error(`Video ${index + 1} generation failed: ${errorMessage}`);
+      })
+  );
+
+  // Wait for all videos to complete
+  const completedVideos = await Promise.all(pollPromises);
+
+  // Sort by index to maintain original order
+  completedVideos.sort((a, b) => a.index - b.index);
+  const results = completedVideos.map(v => v.videoUrl);
+
   logWithTimestamp('All videos generated successfully', { 
     count: results.length,
-    results: results,
-    audioUrls: audioUrls,
-    mapping: results.map((videoUrl, index) => ({
-      index,
-      audioUrl: audioUrls[index],
-      videoUrl
-    }))
+    results
   });
 
   return results;

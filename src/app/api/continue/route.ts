@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     const videoUrls = await generateMultipleVideos(audioParts, imageUrl, {
       prompt: options.style,
       resolution: '480p',
-      delayBetweenRequests: 2000
+      concurrencyLimit: 8 // Process up to 8 videos in parallel
     });
     
     logWithTimestamp('Video generation completed', { 
