@@ -10,6 +10,9 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [showProgress, setShowProgress] = useState(false);
+  const [scriptResult, setScriptResult] = useState<any>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [options, setOptions] = useState<ScriptGenerationOptions | null>(null);
 
   const handleGenerate = async (data: {
     prompt: string;
@@ -49,6 +52,9 @@ export default function Home() {
 
       if (result.success) {
         setJobId(result.jobId);
+        setScriptResult(result.scriptResult);
+        setImageFile(data.image);
+        setOptions(data.options);
         logWithTimestamp('Generation started successfully', { jobId: result.jobId });
       } else {
         throw new Error(result.error || 'Generation failed');
@@ -68,6 +74,57 @@ export default function Home() {
     setIsGenerating(false);
     setJobId(null);
     setShowProgress(false);
+    setScriptResult(null);
+    setImageFile(null);
+    setOptions(null);
+  };
+
+  const handleContinue = async () => {
+    if (!jobId || !scriptResult || !imageFile || !options) {
+      logWithTimestamp('Cannot continue - missing required data', {
+        hasJobId: !!jobId,
+        hasScriptResult: !!scriptResult,
+        hasImageFile: !!imageFile,
+        hasOptions: !!options
+      });
+      return;
+    }
+
+    try {
+      logWithTimestamp('Calling continue endpoint', { jobId });
+      
+      // Convert image file to base64 for the continue endpoint
+      const imageBuffer = await imageFile.arrayBuffer();
+      const imageBase64 = Buffer.from(imageBuffer).toString('base64');
+      
+      const response = await fetch('/api/continue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobId,
+          scriptResult,
+          imageFile: {
+            name: imageFile.name,
+            data: imageBase64
+          },
+          options
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        logWithTimestamp('Continue request successful', { jobId });
+      } else {
+        throw new Error(result.error || 'Continue request failed');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Continue request failed', { jobId, error: errorMessage });
+      alert(`Continue failed: ${errorMessage}`);
+    }
   };
 
   return (
@@ -101,6 +158,8 @@ export default function Home() {
                 <ProgressTracker 
                   jobId={jobId}
                   isVisible={showProgress}
+                  onContinue={handleContinue}
+                  scriptResult={scriptResult}
                 />
                 
                 {/* Reset Button */}

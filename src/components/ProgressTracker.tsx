@@ -7,6 +7,8 @@ import { logWithTimestamp } from '@/lib/utils';
 interface ProgressTrackerProps {
   jobId: string | null;
   isVisible: boolean;
+  onContinue?: () => void;
+  scriptResult?: any;
 }
 
 const stageInfo = {
@@ -54,9 +56,10 @@ const stageInfo = {
   }
 };
 
-export default function ProgressTracker({ jobId, isVisible }: ProgressTrackerProps) {
+export default function ProgressTracker({ jobId, isVisible, onContinue, scriptResult }: ProgressTrackerProps) {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [hasTriggeredContinue, setHasTriggeredContinue] = useState(false);
 
   useEffect(() => {
     if (!jobId || !isVisible) {
@@ -65,6 +68,7 @@ export default function ProgressTracker({ jobId, isVisible }: ProgressTrackerPro
     }
 
     setIsPolling(true);
+    setHasTriggeredContinue(false);
     logWithTimestamp('Starting progress polling', { jobId });
 
     const pollStatus = async () => {
@@ -88,6 +92,13 @@ export default function ProgressTracker({ jobId, isVisible }: ProgressTrackerPro
               jobId, 
               reason: data.stage === ProcessingStage.COMPLETE ? 'completed' : 'error' 
             });
+          }
+
+          // Trigger continue if we have script result and we're at AUDIO stage
+          if (data.stage === ProcessingStage.AUDIO && scriptResult && onContinue && !hasTriggeredContinue) {
+            logWithTimestamp('Script complete, triggering continue', { jobId });
+            setHasTriggeredContinue(true);
+            onContinue();
           }
         } else {
           logWithTimestamp('Status check failed', { jobId, error: data.error });
