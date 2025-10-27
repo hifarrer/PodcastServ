@@ -14,122 +14,17 @@ export async function generateLipsyncVideo(
     seed?: number;
   } = {}
 ): Promise<string> {
-  // Create a cache key based on all parameters
-  const cacheKey = `video_gen:${JSON.stringify({
-    audioUrl,
-    imageUrl,
-    prompt: options.prompt || '',
-    resolution: options.resolution || '480p',
-    seed: options.seed || -1
-  })}`;
-
   logWithTimestamp('Starting Wavespeed video generation', { 
     audioUrl, 
     imageUrl, 
-    options,
-    cacheKey
+    options
   });
 
   if (!WAVESPEED_API_KEY) {
     throw new Error('WAVESPEED_API_KEY not configured');
   }
 
-  // Check if we already have a result for these exact parameters
-  try {
-    const cachedResult = await jobs.get(cacheKey);
-    if (cachedResult && typeof cachedResult === 'string') {
-      logWithTimestamp('Using cached video generation result', { 
-        cacheKey,
-        audioUrl, 
-        imageUrl, 
-        options,
-        cachedResult
-      });
-      return cachedResult;
-    }
-  } catch (error) {
-    logWithTimestamp('Error checking cache, proceeding with generation', { 
-      cacheKey, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-
-  // Check if another request is already processing the same parameters
-  const lockKey = `${cacheKey}:lock`;
-  try {
-    const existingLock = await jobs.get(lockKey);
-    if (existingLock) {
-      logWithTimestamp('Another request is already processing these parameters, waiting...', { 
-        cacheKey,
-        lockKey,
-        existingLock
-      });
-      
-      // Wait and retry for up to 5 minutes
-      for (let attempt = 0; attempt < 60; attempt++) {
-        await sleep(5000); // Wait 5 seconds
-        
-        const cachedResult = await jobs.get(cacheKey);
-        if (cachedResult && typeof cachedResult === 'string') {
-          logWithTimestamp('Found cached result after waiting', { 
-            cacheKey,
-            attempt,
-            cachedResult
-          });
-          return cachedResult;
-        }
-      }
-      
-      logWithTimestamp('Timeout waiting for other request, proceeding anyway', { cacheKey });
-    }
-  } catch (error) {
-    logWithTimestamp('Error checking lock, proceeding with generation', { 
-      lockKey, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-
-  // Set a lock to prevent other simultaneous requests
-  try {
-    await jobs.set(lockKey, Date.now().toString());
-    logWithTimestamp('Set processing lock', { lockKey });
-  } catch (error) {
-    logWithTimestamp('Failed to set lock, proceeding anyway', { 
-      lockKey, 
-      error: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-
-  try {
-    const result = await generateVideoInternal(audioUrl, imageUrl, options);
-    
-    // Cache the result for future use
-    try {
-      await jobs.set(cacheKey, result);
-      logWithTimestamp('Cached video generation result', { cacheKey, result });
-    } catch (cacheError) {
-      logWithTimestamp('Failed to cache result, but generation succeeded', { 
-        cacheKey, 
-        result,
-        error: cacheError instanceof Error ? cacheError.message : 'Unknown error' 
-      });
-    }
-    
-    return result;
-  } catch (error) {
-    throw error;
-  } finally {
-    // Always remove the lock
-    try {
-      await jobs.delete(lockKey);
-      logWithTimestamp('Removed processing lock', { lockKey });
-    } catch (error) {
-      logWithTimestamp('Failed to remove lock', { 
-        lockKey, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      });
-    }
-  }
+  return await generateVideoInternal(audioUrl, imageUrl, options);
 }
 
 async function generateVideoInternal(
@@ -335,81 +230,44 @@ export async function generateMultipleVideos(
   logWithTimestamp('Starting multiple video generation', { 
     audioCount: audioUrls.length,
     imageUrl,
-    options 
+    options,
+    audioUrls
   });
 
-  // Deduplicate audio URLs to prevent duplicate API calls
-  const uniqueAudioUrls = [...new Set(audioUrls)];
-  const audioUrlToIndex = new Map<string, number[]>();
-  
-  // Map each unique URL to its original indices
-  audioUrls.forEach((url, index) => {
-    if (!audioUrlToIndex.has(url)) {
-      audioUrlToIndex.set(url, []);
-    }
-    audioUrlToIndex.get(url)!.push(index);
-  });
-
-  logWithTimestamp('Audio URL deduplication', {
-    originalCount: audioUrls.length,
-    uniqueCount: uniqueAudioUrls.length,
-    duplicates: audioUrls.length - uniqueAudioUrls.length,
-    audioUrlMapping: Array.from(audioUrlToIndex.entries()).map(([url, indices]) => ({
-      url,
-      indices,
-      count: indices.length
-    })),
-    originalAudioUrls: audioUrls,
-    uniqueAudioUrls: uniqueAudioUrls
-  });
-
-  const results: string[] = new Array(audioUrls.length); // Pre-allocate array
+  const results: string[] = [];
   const delayBetweenRequests = options.delayBetweenRequests || 2000; // 2 seconds default
 
-  // Process only unique audio URLs
-  for (let i = 0; i < uniqueAudioUrls.length; i++) {
+  for (let i = 0; i < audioUrls.length; i++) {
     try {
-      const audioUrl = uniqueAudioUrls[i];
-      const originalIndices = audioUrlToIndex.get(audioUrl)!;
-      
-      logWithTimestamp(`Generating video ${i + 1}/${uniqueAudioUrls.length}`, { 
-        audioUrl,
-        uniqueIndex: i,
-        originalIndices,
+      logWithTimestamp(`Generating video ${i + 1}/${audioUrls.length}`, { 
+        audioUrl: audioUrls[i],
+        index: i,
         allAudioUrls: audioUrls
       });
 
-      const videoUrl = await generateLipsyncVideo(audioUrl, imageUrl, {
+      const videoUrl = await generateLipsyncVideo(audioUrls[i], imageUrl, {
         ...options,
-        seed: (options.seed || -1) + i // Vary seed for each unique video
+        seed: (options.seed || -1) + i // Vary seed for each video
       });
 
-      // Assign the same video URL to all original indices that had this audio URL
-      originalIndices.forEach(originalIndex => {
-        results[originalIndex] = videoUrl;
-      });
-      
+      results.push(videoUrl);
       logWithTimestamp(`Video ${i + 1} completed`, { 
         videoUrl,
-        assignedToIndices: originalIndices,
-        originalIndices
+        audioUrl: audioUrls[i],
+        index: i
       });
 
       // Add delay between requests to avoid rate limiting
-      if (i < uniqueAudioUrls.length - 1) {
+      if (i < audioUrls.length - 1) {
         logWithTimestamp(`Waiting ${delayBetweenRequests}ms before next request`);
         await sleep(delayBetweenRequests);
       }
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const audioUrl = uniqueAudioUrls[i];
-      const originalIndices = audioUrlToIndex.get(audioUrl)!;
-      
       logWithTimestamp(`Video ${i + 1} generation failed`, { 
-        uniqueIndex: i,
-        audioUrl,
-        originalIndices,
+        index: i,
+        audioUrl: audioUrls[i],
         error: errorMessage 
       });
       throw new Error(`Video ${i + 1} generation failed: ${errorMessage}`);
@@ -417,12 +275,10 @@ export async function generateMultipleVideos(
   }
 
   logWithTimestamp('All videos generated successfully', { 
-    originalCount: audioUrls.length,
-    uniqueCount: uniqueAudioUrls.length,
-    resultsCount: results.length,
+    count: results.length,
     results: results,
-    originalAudioUrls: audioUrls,
-    finalMapping: results.map((videoUrl, index) => ({
+    audioUrls: audioUrls,
+    mapping: results.map((videoUrl, index) => ({
       index,
       audioUrl: audioUrls[index],
       videoUrl

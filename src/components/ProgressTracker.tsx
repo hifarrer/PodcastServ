@@ -98,7 +98,10 @@ export default function ProgressTracker({ jobId, isVisible, onContinue, scriptRe
           if (data.stage === ProcessingStage.AUDIO && scriptResult && onContinue && !hasTriggeredContinue) {
             logWithTimestamp('Script complete, triggering continue', { jobId });
             setHasTriggeredContinue(true);
-            onContinue();
+            // Add a small delay to prevent race conditions
+            setTimeout(() => {
+              onContinue();
+            }, 1000);
           }
         } else {
           logWithTimestamp('Status check failed', { jobId, error: data.error });
