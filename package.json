@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.67.0",
     "@elevenlabs/elevenlabs-js": "^2.20.1",
     "@types/uuid": "^10.0.0",
     "@vercel/kv": "^3.0.0",

@@ -4,7 +4,7 @@ A powerful AI-powered podcast generation platform that transforms content into p
 
 ## 🎯 Features
 
-- **AI Script Generation**: OpenAI GPT-4o-mini with Anthropic Claude fallback
+- **AI Script Generation**: OpenAI GPT-4o-mini
 - **High-Quality TTS**: ElevenLabs multilingual voice synthesis
 - **Video Generation**: Wavespeed AI lip-sync video creation
 - **Audio Processing**: FFmpeg API for audio splitting and video merging
@@ -41,7 +41,6 @@ A powerful AI-powered podcast generation platform that transforms content into p
    Add your API keys to `.env.local`:
    ```env
    OPENAI_API_KEY=your_openai_key
-   ANTHROPIC_API_KEY=your_anthropic_key
    ELEVENLABS_API_KEY=your_elevenlabs_key
    WAVESPEED_API_KEY=your_wavespeed_key
    FFMPEGAPI_KEY=your_ffmpeg_key
@@ -112,7 +111,6 @@ src/
 | Service | Purpose | Required |
 |---------|---------|----------|
 | OpenAI | Script generation | ✅ |
-| Anthropic | Script generation fallback | ✅ |
 | ElevenLabs | Text-to-speech synthesis | ✅ |
 | Wavespeed | Video generation | ✅ |
 | FFmpeg API | Audio/video processing | ✅ |

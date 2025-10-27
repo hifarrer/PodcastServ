@@ -8,8 +8,7 @@ Your AI Podcast Generator is now fully implemented with real cloud storage! Here
 
 Before testing, ensure you have all API keys configured in `.env.local`:
 
-- ✅ **OpenAI API Key** - For script generation
-- ✅ **Anthropic API Key** - Fallback for script generation  
+- ✅ **OpenAI API Key** - For script generation  
 - ✅ **ElevenLabs API Key** - For text-to-speech
 - ✅ **Wavespeed API Key** - For video generation
 - ✅ **FFmpeg API Key** - For audio splitting and video merging
@@ -107,7 +106,6 @@ You should see detailed logging like:
 
 2. **Script Generation Fails**
    - Check OpenAI API key
-   - Check Anthropic API key (fallback)
    - Verify prompt is not too long
 
 3. **Audio Generation Fails**

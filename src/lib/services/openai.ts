@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
 import { ScriptGenerationOptions, ScriptResult } from '@/lib/types';
 import { logWithTimestamp } from '@/lib/utils';
 
@@ -9,11 +8,6 @@ function getOpenAI() {
   });
 }
 
-function getAnthropic() {
-  return new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-}
 
 export async function generateScript(
   prompt: string, 
@@ -104,53 +98,7 @@ Make the content engaging, informative, and suitable for audio presentation.`;
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logWithTimestamp('OpenAI API failed, trying Anthropic fallback', { error: errorMessage });
-    
-    try {
-      const startTime = Date.now();
-      const anthropic = getAnthropic();
-      
-      const message = await anthropic.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 4000,
-        temperature: 0.7,
-        messages: [
-          { role: "user", content: `${systemPrompt}\n\n${userPrompt}` }
-        ],
-      });
-
-      const duration = Date.now() - startTime;
-      logWithTimestamp(`Anthropic API call completed in ${duration}ms`);
-
-      const responseText = message.content[0]?.type === 'text' ? message.content[0].text : '';
-      if (!responseText) {
-        throw new Error('No response from Anthropic');
-      }
-
-      logWithTimestamp('Parsing Anthropic response', { responseLength: responseText.length });
-      
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in Anthropic response');
-      }
-
-      const scriptResult = JSON.parse(jsonMatch[0]) as ScriptResult;
-      logWithTimestamp('Script generation completed successfully via Anthropic', { 
-        title: scriptResult.title,
-        chapters: scriptResult.chapters.length,
-        turns: scriptResult.turns.length,
-        parts30s: Object.keys(scriptResult.parts30s).length
-      });
-
-      return scriptResult;
-
-    } catch (fallbackError) {
-      const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
-      logWithTimestamp('Both OpenAI and Anthropic failed', { 
-        openaiError: errorMessage,
-        anthropicError: fallbackErrorMessage 
-      });
-      throw new Error(`Script generation failed: ${errorMessage}. Fallback also failed: ${fallbackErrorMessage}`);
-    }
+    logWithTimestamp('OpenAI API failed', { error: errorMessage });
+    throw new Error(`Script generation failed: ${errorMessage}`);
   }
 }

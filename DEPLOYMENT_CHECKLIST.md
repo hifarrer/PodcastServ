@@ -8,7 +8,6 @@ Ensure all these are configured in your deployment platform (Vercel):
 
 #### **Required API Keys:**
 - [ ] `OPENAI_API_KEY` - OpenAI API key for script generation
-- [ ] `ANTHROPIC_API_KEY` - Anthropic API key (fallback)
 - [ ] `ELEVENLABS_API_KEY` - ElevenLabs API key for TTS
 - [ ] `WAVESPEED_API_KEY` - Wavespeed API key for video generation
 - [ ] `FFMPEGAPI_KEY` - FFmpeg API key for audio/video processing
@@ -30,7 +29,6 @@ vercel
 
 # Set environment variables
 vercel env add OPENAI_API_KEY
-vercel env add ANTHROPIC_API_KEY
 vercel env add ELEVENLABS_API_KEY
 vercel env add WAVESPEED_API_KEY
 vercel env add FFMPEGAPI_KEY
@@ -46,9 +44,8 @@ vercel env add CLOUDINARY_API_SECRET
 
 ### **3. API Limits & Costs**
 
-#### **OpenAI/Anthropic:**
+#### **OpenAI:**
 - OpenAI: ~$0.01-0.05 per podcast
-- Anthropic: ~$0.01-0.03 per podcast (fallback)
 
 #### **ElevenLabs:**
 - Free tier: 10,000 characters/month

@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['openai', '@anthropic-ai/sdk'],
+  serverExternalPackages: ['openai'],
   // Increase API route timeout for long-running operations
   async headers() {
     return [
