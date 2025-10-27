@@ -61,6 +61,11 @@ export default function ProgressTracker({ jobId, isVisible, onContinue, scriptRe
   const [isPolling, setIsPolling] = useState(false);
   const [hasTriggeredContinue, setHasTriggeredContinue] = useState(false);
 
+  // Reset hasTriggeredContinue only when jobId changes (new job)
+  useEffect(() => {
+    setHasTriggeredContinue(false);
+  }, [jobId]);
+
   useEffect(() => {
     if (!jobId || !isVisible) {
       setIsPolling(false);
@@ -68,7 +73,6 @@ export default function ProgressTracker({ jobId, isVisible, onContinue, scriptRe
     }
 
     setIsPolling(true);
-    setHasTriggeredContinue(false);
     logWithTimestamp('Starting progress polling', { jobId });
 
     const pollStatus = async () => {
