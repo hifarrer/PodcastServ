@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jobs } from '@/lib/jobs';
 import { logWithTimestamp } from '@/lib/utils';
+import { JobStatus } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
@@ -22,18 +23,31 @@ export async function GET(
       }, { status: 404 });
     }
     
+    // Check if job is a JobStatus object or a string
+    if (typeof job === 'string') {
+      logWithTimestamp('Job is a string value (likely cached data)', { jobId, value: job });
+      return NextResponse.json({
+        success: true,
+        jobId,
+        value: job,
+        message: 'This appears to be cached data, not a job status'
+      });
+    }
+    
+    // job is a JobStatus object
+    const jobStatus = job as JobStatus;
     logWithTimestamp('Job status retrieved', { 
       jobId, 
-      stage: job.stage,
-      progress: job.progress,
-      message: job.message,
-      hasError: !!job.error
+      stage: jobStatus.stage,
+      progress: jobStatus.progress,
+      message: jobStatus.message,
+      hasError: !!jobStatus.error
     });
     
     return NextResponse.json({
       success: true,
       jobId,
-      ...job
+      ...jobStatus
     });
     
   } catch (error) {
