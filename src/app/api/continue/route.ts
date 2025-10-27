@@ -97,6 +97,11 @@ export async function POST(request: NextRequest) {
       resolution: '480p',
       delayBetweenRequests: 2000
     }).then(async (videoUrls) => {
+      if (!jobId) {
+        logWithTimestamp('Cannot update job status - jobId is null', { videoUrls });
+        return;
+      }
+
       logWithTimestamp('Video generation completed', { 
         jobId, 
         videoCount: videoUrls.length,
@@ -153,12 +158,14 @@ export async function POST(request: NextRequest) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logWithTimestamp('Background video generation failed', { jobId, error: errorMessage });
       
-      await jobs.set(jobId, {
-        stage: ProcessingStage.ERROR,
-        progress: 0,
-        message: `Video generation failed: ${errorMessage}`,
-        error: errorMessage
-      });
+      if (jobId) {
+        await jobs.set(jobId, {
+          stage: ProcessingStage.ERROR,
+          progress: 0,
+          message: `Video generation failed: ${errorMessage}`,
+          error: errorMessage
+        });
+      }
     });
 
     // Return early to avoid timeout
