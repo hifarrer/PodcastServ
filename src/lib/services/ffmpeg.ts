@@ -160,10 +160,22 @@ export async function pollJobStatus(jobId: string, maxAttempts: number = 60): Pr
         throw new Error(`Job failed: ${status.error}`);
       }
 
-      // Wait 10 seconds before next poll
+      // Wait before next poll with progressive backoff
+      // Start with shorter intervals, increase over time
       if (attempt < maxAttempts) {
-        logWithTimestamp('Waiting 10 seconds before next poll');
-        await sleep(10000);
+        let waitTime: number;
+        if (attempt <= 5) {
+          waitTime = 3000; // First 5 attempts: 3 seconds (15 sec total)
+        } else if (attempt <= 15) {
+          waitTime = 5000; // Next 10 attempts: 5 seconds (50 sec total)
+        } else if (attempt <= 30) {
+          waitTime = 8000; // Next 15 attempts: 8 seconds (120 sec total)
+        } else {
+          waitTime = 10000; // After that: 10 seconds
+        }
+        
+        logWithTimestamp(`Waiting ${waitTime/1000} seconds before next poll (attempt ${attempt}/${maxAttempts})`);
+        await sleep(waitTime);
       }
 
     } catch (error) {

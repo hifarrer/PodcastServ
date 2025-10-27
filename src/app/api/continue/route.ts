@@ -144,9 +144,36 @@ export async function POST(request: NextRequest) {
       mergeJobId: mergeResult.job_id
     });
 
-    // Poll for merge completion
+    // Poll for merge completion with progress updates
     logWithTimestamp('Polling for merge completion', { jobId, mergeJobId: mergeResult.job_id });
-    const finalResult = await pollJobStatus(mergeResult.job_id);
+    
+    // Create a polling wrapper that updates progress
+    let pollAttempt = 0;
+    const pollWithProgress = async () => {
+      const pollInterval = setInterval(async () => {
+        pollAttempt++;
+        if (pollAttempt % 3 === 0 && jobId) { // Update every 3 attempts
+          const progressPercent = Math.min(70 + Math.floor(pollAttempt / 2), 95);
+          await jobs.set(jobId, {
+            stage: ProcessingStage.VIDEO_MERGE,
+            progress: progressPercent,
+            message: `Merging videos... (${Math.floor(pollAttempt * 5)}s elapsed)`,
+            mergeJobId: mergeResult.job_id
+          });
+        }
+      }, 5000);
+
+      try {
+        const result = await pollJobStatus(mergeResult.job_id);
+        clearInterval(pollInterval);
+        return result;
+      } catch (error) {
+        clearInterval(pollInterval);
+        throw error;
+      }
+    };
+    
+    const finalResult = await pollWithProgress();
     
     logWithTimestamp('Video merge completed', { 
       jobId, 
