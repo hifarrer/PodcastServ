@@ -84,99 +84,82 @@ export async function POST(request: NextRequest) {
       imageUrl
     });
 
-    // Start video generation but don't wait for completion
-    logWithTimestamp('Starting video generation in background', { 
+    // Stage 4: Video Generation
+    logWithTimestamp('Stage 4: Video Generation - Starting', { 
       jobId,
       audioPartsCount: audioParts.length,
       audioParts: audioParts,
       imageUrl,
       style: options.style
     });
-    generateMultipleVideos(audioParts, imageUrl, {
+    
+    const videoUrls = await generateMultipleVideos(audioParts, imageUrl, {
       prompt: options.style,
       resolution: '480p',
       delayBetweenRequests: 2000
-    }).then(async (videoUrls) => {
-      if (!jobId) {
-        logWithTimestamp('Cannot update job status - jobId is null', { videoUrls });
-        return;
-      }
-
-      logWithTimestamp('Video generation completed', { 
-        jobId, 
-        videoCount: videoUrls.length,
-        videoUrls 
-      });
-
-      await jobs.set(jobId, {
-        stage: ProcessingStage.VIDEO_MERGE,
-        progress: 60,
-        message: 'Merging video segments...',
-        videoParts: videoUrls
-      });
-
-      // Stage 5: Video Merging
-      logWithTimestamp('Stage 5: Video Merging', { jobId });
-      const mergeResult = await mergeVideos(videoUrls, audioUrl, {
-        dimensions: '1920x1080'
-      });
-      
-      logWithTimestamp('Video merge job submitted', { 
-        jobId, 
-        mergeJobId: mergeResult.job_id 
-      });
-
-      await jobs.set(jobId, {
-        stage: ProcessingStage.VIDEO_MERGE,
-        progress: 70,
-        message: 'Waiting for video merge to complete...',
-        mergeJobId: mergeResult.job_id
-      });
-
-      // Poll for merge completion
-      logWithTimestamp('Polling for merge completion', { jobId, mergeJobId: mergeResult.job_id });
-      const finalResult = await pollJobStatus(mergeResult.job_id);
-      
-      logWithTimestamp('Video merge completed', { 
-        jobId, 
-        finalVideoUrl: finalResult.download_url 
-      });
-
-      // Stage 6: Complete
-      await jobs.set(jobId, {
-        stage: ProcessingStage.COMPLETE,
-        progress: 100,
-        message: 'Podcast generation completed successfully!',
-        videoUrl: finalResult.download_url
-      });
-
-      logWithTimestamp('Job completed successfully', { 
-        jobId, 
-        finalVideoUrl: finalResult.download_url 
-      });
-    }).catch(async (error) => {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logWithTimestamp('Background video generation failed', { jobId, error: errorMessage });
-      
-      if (jobId) {
-        await jobs.set(jobId, {
-          stage: ProcessingStage.ERROR,
-          progress: 0,
-          message: `Video generation failed: ${errorMessage}`,
-          error: errorMessage
-        });
-      }
+    });
+    
+    logWithTimestamp('Video generation completed', { 
+      jobId, 
+      videoCount: videoUrls.length,
+      videoUrls 
     });
 
-    // Return early to avoid timeout
+    await jobs.set(jobId, {
+      stage: ProcessingStage.VIDEO_MERGE,
+      progress: 60,
+      message: 'Merging video segments...',
+      videoParts: videoUrls
+    });
+
+    // Stage 5: Video Merging
+    logWithTimestamp('Stage 5: Video Merging', { jobId });
+    const mergeResult = await mergeVideos(videoUrls, audioUrl, {
+      dimensions: '1920x1080'
+    });
+    
+    logWithTimestamp('Video merge job submitted', { 
+      jobId, 
+      mergeJobId: mergeResult.job_id 
+    });
+
+    await jobs.set(jobId, {
+      stage: ProcessingStage.VIDEO_MERGE,
+      progress: 70,
+      message: 'Waiting for video merge to complete...',
+      mergeJobId: mergeResult.job_id
+    });
+
+    // Poll for merge completion
+    logWithTimestamp('Polling for merge completion', { jobId, mergeJobId: mergeResult.job_id });
+    const finalResult = await pollJobStatus(mergeResult.job_id);
+    
+    logWithTimestamp('Video merge completed', { 
+      jobId, 
+      finalVideoUrl: finalResult.download_url 
+    });
+
+    // Stage 6: Complete
+    await jobs.set(jobId, {
+      stage: ProcessingStage.COMPLETE,
+      progress: 100,
+      message: 'Podcast generation completed successfully!',
+      videoUrl: finalResult.download_url
+    });
+
+    logWithTimestamp('Job completed successfully', { 
+      jobId, 
+      finalVideoUrl: finalResult.download_url 
+    });
+
+    // Return success with final video URL
     return NextResponse.json({
       success: true,
       jobId,
-      message: 'Audio processing completed! Video generation will continue in the background.',
-      stage: 'VIDEO_GENERATION',
-      progress: 40,
-      audioParts,
-      imageUrl
+      message: 'Podcast generation completed successfully!',
+      stage: 'COMPLETE',
+      progress: 100,
+      videoUrl: finalResult.download_url
     });
 
   } catch (error) {
