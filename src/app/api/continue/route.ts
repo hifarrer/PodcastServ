@@ -8,8 +8,11 @@ import { ProcessingStage, JobStatus, ScriptGenerationOptions } from '@/lib/types
 import { jobs } from '@/lib/jobs';
 
 export async function POST(request: NextRequest) {
+  let jobId: string | null = null;
+  
   try {
-    const { jobId, scriptResult, imageFile, options } = await request.json();
+    const { jobId: requestJobId, scriptResult, imageFile, options } = await request.json();
+    jobId = requestJobId;
     
     if (!jobId || !scriptResult || !imageFile || !options) {
       return NextResponse.json({
