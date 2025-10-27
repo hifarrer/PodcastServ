@@ -23,6 +23,33 @@ export async function POST(request: NextRequest) {
 
     logWithTimestamp('Continuing podcast generation', { jobId });
 
+    // SERVER-SIDE PROTECTION: Check if this job is already being processed
+    const existingJob = await jobs.get(jobId);
+    
+    if (existingJob && typeof existingJob !== 'string') {
+      // If job is already beyond AUDIO stage, it's already being processed
+      if (existingJob.stage !== ProcessingStage.AUDIO && existingJob.stage !== ProcessingStage.SCRIPT) {
+        logWithTimestamp('Job already being processed, rejecting duplicate request', { 
+          jobId, 
+          currentStage: existingJob.stage 
+        });
+        return NextResponse.json({
+          success: false,
+          error: 'This job is already being processed',
+          currentStage: existingJob.stage
+        }, { status: 409 }); // 409 Conflict
+      }
+    }
+
+    // Set a processing lock by updating to SPLIT stage immediately
+    await jobs.set(jobId, {
+      stage: ProcessingStage.SPLIT,
+      progress: 25,
+      message: 'Processing request...'
+    });
+
+    logWithTimestamp('Processing lock acquired', { jobId });
+
     // Stage 2: Audio Generation
     logWithTimestamp('Stage 2: Audio Generation - Starting', { jobId });
     await jobs.set(jobId, {
