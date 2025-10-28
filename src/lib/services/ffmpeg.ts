@@ -79,9 +79,6 @@ export async function mergeVideos(
       {
         video_urls: videoUrls,
         audio_url: audioUrl,
-        subtitle_url: options.subtitleUrl,
-        watermark_url: options.watermarkUrl,
-        dimensions: options.dimensions || '1920x1080',
         async: true
       },
       {
@@ -116,12 +113,14 @@ export async function mergeVideos(
   }
 }
 
-export async function pollJobStatus(jobId: string, maxAttempts: number = 60): Promise<FFmpegJobStatus> {
+export async function pollJobStatus(jobId: string, maxAttempts: number = 120): Promise<FFmpegJobStatus> {
   logWithTimestamp('Starting job status polling', { jobId, maxAttempts });
 
   if (!FFMPEGAPI_KEY) {
     throw new Error('FFMPEGAPI_KEY not configured');
   }
+
+  let totalElapsedTime = 0; // Track total time for better error messages
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -174,7 +173,9 @@ export async function pollJobStatus(jobId: string, maxAttempts: number = 60): Pr
           waitTime = 10000; // After that: 10 seconds
         }
         
-        logWithTimestamp(`Waiting ${waitTime/1000} seconds before next poll (attempt ${attempt}/${maxAttempts})`);
+        totalElapsedTime += waitTime;
+        
+        logWithTimestamp(`Waiting ${waitTime/1000} seconds before next poll (attempt ${attempt}/${maxAttempts}, ${Math.floor(totalElapsedTime/1000)}s elapsed)`);
         await sleep(waitTime);
       }
 
@@ -187,13 +188,24 @@ export async function pollJobStatus(jobId: string, maxAttempts: number = 60): Pr
       });
       
       if (attempt === maxAttempts) {
-        throw new Error(`Job polling failed after ${maxAttempts} attempts: ${errorMessage}`);
+        throw new Error(`Job polling failed after ${maxAttempts} attempts (~${Math.floor(totalElapsedTime/1000)}s): ${errorMessage}`);
       }
       
-      // Wait before retrying
-      await sleep(10000);
+      // Wait before retrying (use same progressive backoff)
+      let waitTime: number;
+      if (attempt <= 5) {
+        waitTime = 3000;
+      } else if (attempt <= 15) {
+        waitTime = 5000;
+      } else if (attempt <= 30) {
+        waitTime = 8000;
+      } else {
+        waitTime = 10000;
+      }
+      totalElapsedTime += waitTime;
+      await sleep(waitTime);
     }
   }
 
-  throw new Error(`Job did not complete within ${maxAttempts} attempts (${maxAttempts * 10} seconds)`);
+  throw new Error(`Job did not complete within ${maxAttempts} attempts (~${Math.floor(totalElapsedTime/60000)} minutes)`);
 }

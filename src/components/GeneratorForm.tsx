@@ -144,28 +144,117 @@ export default function GeneratorForm({ onSubmit, isGenerating }: GeneratorFormP
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (!isValidImageFile(file)) {
-        alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
-        return;
-      }
+  // Resize image if width exceeds 1024px
+  const resizeImageIfNeeded = async (file: File, maxWidth: number = 1024): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
       
-      setImage(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        
+        // If image width is already within limit, return original file
+        if (img.width <= maxWidth) {
+          logWithTimestamp('Image within size limit, no resize needed', {
+            originalWidth: img.width,
+            originalHeight: img.height,
+            maxWidth
+          });
+          resolve(file);
+          return;
+        }
+        
+        // Calculate new dimensions maintaining aspect ratio
+        const aspectRatio = img.height / img.width;
+        const newWidth = maxWidth;
+        const newHeight = Math.round(maxWidth * aspectRatio);
+        
+        logWithTimestamp('Resizing image', {
+          originalWidth: img.width,
+          originalHeight: img.height,
+          newWidth,
+          newHeight,
+          originalSize: `${(file.size / 1024).toFixed(1)} KB`
+        });
+        
+        // Create canvas and resize
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+        
+        // Convert canvas to blob
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const resizedFile = new File([blob], file.name, { 
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              
+              logWithTimestamp('Image resized successfully', {
+                newWidth,
+                newHeight,
+                newSize: `${(resizedFile.size / 1024).toFixed(1)} KB`,
+                reduction: `${(((file.size - resizedFile.size) / file.size) * 100).toFixed(1)}%`
+              });
+              
+              resolve(resizedFile);
+            } else {
+              reject(new Error('Failed to create blob from canvas'));
+            }
+          },
+          'image/jpeg',
+          0.9 // Quality 90%
+        );
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Failed to load image'));
+      };
+      
+      img.src = objectUrl;
+    });
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!isValidImageFile(file)) {
+      alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+      return;
+    }
+    
+    try {
+      // Resize image if needed
+      const processedFile = await resizeImageIfNeeded(file, 1024);
+      setImage(processedFile);
       
       // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(processedFile);
       
       logWithTimestamp('Image selected', { 
-        name: file.name, 
-        size: file.size, 
-        type: file.type 
+        name: processedFile.name, 
+        size: processedFile.size, 
+        type: processedFile.type 
       });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logWithTimestamp('Failed to process image', { error: errorMessage });
+      alert(`Failed to process image: ${errorMessage}`);
     }
   };
 
