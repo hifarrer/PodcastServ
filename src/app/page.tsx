@@ -288,21 +288,12 @@ export default function Home() {
             {/* Welcome Message */}
             {!showProgress && (
               <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4">Welcome!</h3>
+                
                 <div className="space-y-4 text-gray-600">
                   <p>
                     Create professional podcast episodes by simply providing a topic and speaker image.
                   </p>
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-gray-900">Features:</h4>
-                    <ul className="list-disc list-inside space-y-1 text-sm">
-                      <li>AI-powered script generation with multiple modes</li>
-                      <li>High-quality text-to-speech with ElevenLabs</li>
-                      <li>Automatic audio splitting into segments</li>
-                      <li>Lip-sync video generation with your image</li>
-                      <li>Professional video merging and output</li>
-                    </ul>
-                  </div>
+                  
                   <div className="pt-4">
                     <p className="text-sm text-gray-500">
                       Fill out the form to get started with your podcast generation!
