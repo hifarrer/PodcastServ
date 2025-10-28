@@ -24,7 +24,7 @@ export default function GeneratorForm({ onSubmit, isGenerating }: GeneratorFormP
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [options, setOptions] = useState<ScriptGenerationOptions>({
     mode: 'SUMMARY',
-    targetMinutes: 5,
+    targetMinutes: 2,
     language: 'English',
     style: 'Professional and engaging',
     twoSpeakers: false,

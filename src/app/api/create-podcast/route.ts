@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     // Create options object
     const options: ScriptGenerationOptions = {
       mode: mode as "SUMMARY" | "READTHROUGH" | "DISCUSSION",
-      targetMinutes: duration || 5,
+      targetMinutes: duration || 2,
       language: language || "English",
       style: style || "Professional",
       voiceId: voice_id,
@@ -133,7 +133,7 @@ export async function GET() {
       voice_id: "string - ElevenLabs voice ID for audio generation"
     },
     optionalFields: {
-      duration: "number - Duration in minutes (default: 5)",
+      duration: "number - Duration in minutes (default: 2)",
       language: "string - Language for the podcast (default: 'English')",
       style: "string - Style of the podcast (default: 'Professional')",
       mode: "string - 'SUMMARY', 'READTHROUGH', or 'DISCUSSION' (default: 'SUMMARY')",

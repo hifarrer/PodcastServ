@@ -45,7 +45,7 @@ Return ONLY a valid JSON object with this exact structure:
   const userPrompt = `Create a ${options.mode.toLowerCase()} podcast script about: ${prompt}
 
 Requirements:
-- Target duration: ${options.targetMinutes || 5} minutes
+- Target duration: ${options.targetMinutes || 2} minutes
 - Language: ${options.language}
 - Style: ${options.style}
 - Two speakers: ${options.twoSpeakers ? 'Yes' : 'No'}

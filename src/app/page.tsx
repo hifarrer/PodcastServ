@@ -366,7 +366,7 @@ export default function Home() {
                     <div className="mb-4">
                       <h4 className="font-medium text-gray-900 mb-2">Optional Parameters:</h4>
                       <ul className="text-sm text-gray-600 space-y-1">
-                        <li><code className="bg-gray-200 px-1 rounded">duration</code> - Duration in minutes (default: 5)</li>
+                        <li><code className="bg-gray-200 px-1 rounded">duration</code> - Duration in minutes (default: 2)</li>
                         <li><code className="bg-gray-200 px-1 rounded">language</code> - Language for the podcast (default: "English")</li>
                         <li><code className="bg-gray-200 px-1 rounded">style</code> - Style of the podcast (default: "Professional")</li>
                         <li><code className="bg-gray-200 px-1 rounded">mode</code> - "SUMMARY", "READTHROUGH", or "DISCUSSION" (default: "SUMMARY")</li>
@@ -382,7 +382,7 @@ export default function Home() {
 {`{
   "prompt": "The future of artificial intelligence in healthcare",
   "speaker_image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
-  "duration": 5,
+  "duration": 2,
   "language": "English",
   "style": "Professional",
   "voice_id": "pNInz6obpgDQGcFmaJgB",

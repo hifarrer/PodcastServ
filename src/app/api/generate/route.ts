@@ -60,7 +60,7 @@ async function processPodcastGeneration(jobId: string, prompt: string, imageFile
     logWithTimestamp('Stage 3: Audio Splitting', { jobId });
     
     // Calculate number of 30-second segments based on target duration
-    const targetDurationSeconds = (options.targetMinutes || 5) * 60;
+    const targetDurationSeconds = (options.targetMinutes || 2) * 60;
     const segmentsCount = Math.ceil(targetDurationSeconds / 30);
     
     logWithTimestamp('Calculating audio segments', { 

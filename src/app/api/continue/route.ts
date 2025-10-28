@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Stage 3: Audio Splitting
     logWithTimestamp('Stage 3: Audio Splitting - Starting', { jobId });
     
-    const targetDurationSeconds = (options.targetMinutes || 5) * 60;
+    const targetDurationSeconds = (options.targetMinutes || 2) * 60;
     const segmentsCount = Math.ceil(targetDurationSeconds / 30);
     
     const splitResult = await splitAudio(audioUrl, segmentsCount);
