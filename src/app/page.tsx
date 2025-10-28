@@ -14,6 +14,7 @@ export default function Home() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [options, setOptions] = useState<ScriptGenerationOptions | null>(null);
   const [continueCallMade, setContinueCallMade] = useState(false);
+  const [showApiDocs, setShowApiDocs] = useState(false);
   
   // Elapsed time tracking
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -226,9 +227,20 @@ export default function Home() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            AI Podcast Generator
-          </h1>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex-1"></div>
+            <h1 className="text-4xl font-bold text-gray-900">
+              AI Podcast Generator
+            </h1>
+            <div className="flex-1 flex justify-end">
+              <button
+                onClick={() => setShowApiDocs(true)}
+                className="px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
+              >
+                📚 API Docs
+              </button>
+            </div>
+          </div>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Transform your content into professional podcast episodes with AI-powered script generation, 
             text-to-speech, and video creation.
@@ -307,6 +319,167 @@ export default function Home() {
           <p>AI Podcast Generator - Powered by OpenAI, ElevenLabs, Wavespeed, and FFmpeg</p>
         </div>
       </div>
+
+      {/* API Docs Modal */}
+      {showApiDocs && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">API Documentation</h2>
+                <button
+                  onClick={() => setShowApiDocs(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Overview */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Overview</h3>
+                  <p className="text-gray-600 mb-4">
+                    The AI Podcast Generator provides a RESTful API for creating podcast episodes with AI-generated scripts, 
+                    text-to-speech audio, and video generation. Perfect for integration with external applications and testing tools like Postman.
+                  </p>
+                </div>
+
+                {/* Create Podcast Endpoint */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Create Podcast Episode</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="mb-3">
+                      <span className="inline-block bg-green-100 text-green-800 text-sm font-medium px-2 py-1 rounded mr-2">POST</span>
+                      <code className="text-sm font-mono">/api/create-podcast</code>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Required Parameters:</h4>
+                      <ul className="text-sm text-gray-600 space-y-1">
+                        <li><code className="bg-gray-200 px-1 rounded">prompt</code> - The topic or content for the podcast</li>
+                        <li><code className="bg-gray-200 px-1 rounded">speaker_image_url</code> - URL of the speaker's image</li>
+                        <li><code className="bg-gray-200 px-1 rounded">voice_id</code> - ElevenLabs voice ID for audio generation</li>
+                      </ul>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Optional Parameters:</h4>
+                      <ul className="text-sm text-gray-600 space-y-1">
+                        <li><code className="bg-gray-200 px-1 rounded">duration</code> - Duration in minutes (default: 5)</li>
+                        <li><code className="bg-gray-200 px-1 rounded">language</code> - Language for the podcast (default: "English")</li>
+                        <li><code className="bg-gray-200 px-1 rounded">style</code> - Style of the podcast (default: "Professional")</li>
+                        <li><code className="bg-gray-200 px-1 rounded">mode</code> - "SUMMARY", "READTHROUGH", or "DISCUSSION" (default: "SUMMARY")</li>
+                        <li><code className="bg-gray-200 px-1 rounded">twoSpeakers</code> - Whether to use two speakers (default: false)</li>
+                        <li><code className="bg-gray-200 px-1 rounded">speakerNameA</code> - Name of first speaker (default: "Host")</li>
+                        <li><code className="bg-gray-200 px-1 rounded">speakerNameB</code> - Name of second speaker (default: "Guest")</li>
+                      </ul>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Example Request:</h4>
+                      <pre className="bg-gray-800 text-green-400 p-3 rounded text-xs overflow-x-auto">
+{`{
+  "prompt": "The future of artificial intelligence in healthcare",
+  "speaker_image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400",
+  "duration": 5,
+  "language": "English",
+  "style": "Professional",
+  "voice_id": "pNInz6obpgDQGcFmaJgB",
+  "mode": "SUMMARY",
+  "twoSpeakers": false,
+  "speakerNameA": "Dr. Smith",
+  "speakerNameB": "Interviewer"
+}`}
+                      </pre>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Example Response:</h4>
+                      <pre className="bg-gray-800 text-blue-400 p-3 rounded text-xs overflow-x-auto">
+{`{
+  "success": true,
+  "jobId": "job_abc123",
+  "message": "Podcast creation started successfully!",
+  "stage": "AUDIO",
+  "progress": 20,
+  "scriptResult": {
+    "title": "The Future of AI in Healthcare",
+    "chapters": [...],
+    "show_notes": "...",
+    "estimated_wpm": 150,
+    "speaker_names": {"A": "Dr. Smith", "B": "Interviewer"},
+    "turns": [...]
+  },
+  "statusUrl": "/api/status/job_abc123"
+}`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Check Status Endpoint */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Check Job Status</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="mb-3">
+                      <span className="inline-block bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded mr-2">GET</span>
+                      <code className="text-sm font-mono">/api/status/{'{jobId}'}</code>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Example:</h4>
+                      <code className="text-sm font-mono bg-gray-200 px-2 py-1 rounded">GET /api/status/job_abc123</code>
+                    </div>
+
+                    <div className="mb-4">
+                      <h4 className="font-medium text-gray-900 mb-2">Response:</h4>
+                      <pre className="bg-gray-800 text-blue-400 p-3 rounded text-xs overflow-x-auto">
+{`{
+  "success": true,
+  "jobId": "job_abc123",
+  "stage": "COMPLETE",
+  "progress": 100,
+  "message": "Podcast generation completed successfully!",
+  "videoUrl": "https://example.com/final-video.mp4"
+}`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Get Voices Endpoint */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Get Available Voices</h3>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="mb-3">
+                      <span className="inline-block bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded mr-2">GET</span>
+                      <code className="text-sm font-mono">/api/voices</code>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Returns a list of available ElevenLabs voices with their IDs, names, and descriptions.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Testing Tips */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Testing Tips</h3>
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <ul className="text-sm text-gray-700 space-y-2">
+                      <li>• Use <code className="bg-blue-200 px-1 rounded">Content-Type: application/json</code> header</li>
+                      <li>• Start with a simple prompt and short duration (2-3 minutes) for testing</li>
+                      <li>• Use the <code className="bg-blue-200 px-1 rounded">/api/voices</code> endpoint to get valid voice IDs</li>
+                      <li>• Check job status every 10-15 seconds for progress updates</li>
+                      <li>• The complete process typically takes 2-5 minutes depending on duration</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
