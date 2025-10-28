@@ -11,6 +11,7 @@ interface ProgressTrackerProps {
   scriptResult?: any;
   elapsedTime?: number;
   formatElapsedTime?: (seconds: number) => string;
+  onGenerationComplete?: () => void;
 }
 
 const stageInfo = {
@@ -58,7 +59,7 @@ const stageInfo = {
   }
 };
 
-export default function ProgressTracker({ jobId, isVisible, onContinue, scriptResult, elapsedTime, formatElapsedTime }: ProgressTrackerProps) {
+export default function ProgressTracker({ jobId, isVisible, onContinue, scriptResult, elapsedTime, formatElapsedTime, onGenerationComplete }: ProgressTrackerProps) {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [hasTriggeredContinue, setHasTriggeredContinue] = useState(false);
@@ -98,6 +99,11 @@ export default function ProgressTracker({ jobId, isVisible, onContinue, scriptRe
               jobId, 
               reason: data.stage === ProcessingStage.COMPLETE ? 'completed' : 'error' 
             });
+            
+            // Notify parent component that generation is complete
+            if (data.stage === ProcessingStage.COMPLETE && onGenerationComplete) {
+              onGenerationComplete();
+            }
           }
 
           // Trigger continue if we have script result and we're at AUDIO stage

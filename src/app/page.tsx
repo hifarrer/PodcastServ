@@ -117,6 +117,18 @@ export default function Home() {
     }
   };
 
+  const handleGenerationComplete = () => {
+    logWithTimestamp('Generation completed, stopping timer');
+    setIsGenerating(false);
+    
+    // Stop timer
+    setStartTime(null);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
   const handleReset = () => {
     logWithTimestamp('Resetting form');
     setIsGenerating(false);
@@ -244,6 +256,7 @@ export default function Home() {
                   scriptResult={scriptResult}
                   elapsedTime={elapsedTime}
                   formatElapsedTime={formatElapsedTime}
+                  onGenerationComplete={handleGenerationComplete}
                 />
                 
                 {/* Reset Button */}
