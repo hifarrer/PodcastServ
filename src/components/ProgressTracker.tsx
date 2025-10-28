@@ -9,6 +9,8 @@ interface ProgressTrackerProps {
   isVisible: boolean;
   onContinue?: () => void;
   scriptResult?: any;
+  elapsedTime?: number;
+  formatElapsedTime?: (seconds: number) => string;
 }
 
 const stageInfo = {
@@ -56,7 +58,7 @@ const stageInfo = {
   }
 };
 
-export default function ProgressTracker({ jobId, isVisible, onContinue, scriptResult }: ProgressTrackerProps) {
+export default function ProgressTracker({ jobId, isVisible, onContinue, scriptResult, elapsedTime, formatElapsedTime }: ProgressTrackerProps) {
   const [status, setStatus] = useState<JobStatus | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [hasTriggeredContinue, setHasTriggeredContinue] = useState(false);
@@ -156,7 +158,14 @@ export default function ProgressTracker({ jobId, isVisible, onContinue, scriptRe
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
-      <h3 className="text-xl font-bold text-gray-900 mb-4">Generation Progress</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold text-gray-900">Generation Progress</h3>
+        {elapsedTime !== undefined && formatElapsedTime && (
+          <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
+            <span className="font-medium">Elapsed:</span> {formatElapsedTime(elapsedTime)}
+          </div>
+        )}
+      </div>
       
       {/* Progress Bar */}
       <div className="mb-6">

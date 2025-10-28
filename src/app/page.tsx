@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import GeneratorForm from '@/components/GeneratorForm';
 import ProgressTracker from '@/components/ProgressTracker';
 import { ScriptGenerationOptions } from '@/lib/types';
@@ -14,6 +14,39 @@ export default function Home() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [options, setOptions] = useState<ScriptGenerationOptions | null>(null);
   const [continueCallMade, setContinueCallMade] = useState(false);
+  
+  // Elapsed time tracking
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Timer effect
+  useEffect(() => {
+    if (startTime && isGenerating) {
+      intervalRef.current = setInterval(() => {
+        setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
+      }, 1000);
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [startTime, isGenerating]);
+
+  // Format elapsed time as MM:SS
+  const formatElapsedTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleGenerate = async (data: {
     prompt: string;
@@ -30,6 +63,11 @@ export default function Home() {
     setShowProgress(true);
     setJobId(null);
     setContinueCallMade(false); // Reset the flag for new generation
+    
+    // Start elapsed time tracking
+    const now = Date.now();
+    setStartTime(now);
+    setElapsedTime(0);
 
     try {
       const formData = new FormData();
@@ -68,6 +106,14 @@ export default function Home() {
       alert(`Generation failed: ${errorMessage}`);
       setIsGenerating(false);
       setShowProgress(false);
+      
+      // Reset timer on error
+      setStartTime(null);
+      setElapsedTime(0);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     }
   };
 
@@ -80,6 +126,14 @@ export default function Home() {
     setImageFile(null);
     setOptions(null);
     setContinueCallMade(false);
+    
+    // Reset timer
+    setStartTime(null);
+    setElapsedTime(0);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
   };
 
   const handleContinue = async () => {
@@ -188,6 +242,8 @@ export default function Home() {
                   isVisible={showProgress}
                   onContinue={handleContinue}
                   scriptResult={scriptResult}
+                  elapsedTime={elapsedTime}
+                  formatElapsedTime={formatElapsedTime}
                 />
                 
                 {/* Reset Button */}
